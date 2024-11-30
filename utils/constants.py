@@ -1,0 +1,1 @@
+DATE_FORMAT_SHIOAJI = '%Y-%m-%d'
