@@ -92,7 +92,7 @@ def testing_futures_ordering():
 
 
 def testing_quote_manager():
-    from utils import get_api
+    from tools import get_api
     from quote import QuoteManager
     import polars as pl
     import polars_talib as plta

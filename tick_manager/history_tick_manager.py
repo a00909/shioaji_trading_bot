@@ -9,6 +9,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from database.schema.history_tick import HistoryTickMemo, HistoryTick
+from tools.utils import get_now, history_ts_to_datetime
+from tools.constants import DATE_FORMAT_SHIOAJI
 
 
 class HistoryTickManager:
@@ -34,7 +36,7 @@ class HistoryTickManager:
         for i in ticks:
             data.append(i.to_string())
 
-        pipe.lpush(key, *data)
+        pipe.rpush(key, *data)
         pipe.sadd(self.memo_key, key)
 
         pipe.expire(key, 86400)
@@ -91,9 +93,8 @@ class HistoryTickManager:
 
         new_ticks = []
         for i in range(ticks_len):
-            ts = float(ticks.ts[i]) / 1000000000
             new_ticks.append(HistoryTick(
-                ts=datetime.fromtimestamp(ts),
+                ts=history_ts_to_datetime(ticks.ts[i]),
                 symbol=symbol,
                 close=ticks.close[i],
                 volume=ticks.volume[i],
@@ -138,7 +139,7 @@ class HistoryTickManager:
                 results = session.query(HistoryTick).filter(
                     HistoryTick.ts.between(start_time, end_time),
                     HistoryTick.symbol == symbol
-                ).all()
+                ).order_by(HistoryTick.ts).all()
 
                 return True, results
             return False, []
@@ -176,6 +177,19 @@ class HistoryTickManager:
             print(*args, **kwargs)
 
     def get_tick(self, contract, date: str) -> list[HistoryTick]:
+        now = get_now()
+        date_dt = datetime.strptime(date, DATE_FORMAT_SHIOAJI)
+        if not (
+                now.date() > date_dt.date() or  # now大於要求日期
+                (
+                        # now == 要求日期且早盤已收
+                        now.date().strftime(DATE_FORMAT_SHIOAJI) == date
+                        and now.hour >= 13
+                        and now.minute >= 45
+                )
+        ):
+            raise Exception("History ticks is not complete yet.")
+
         symbol = contract.symbol
 
         self.log('Try load ticks from redis...')

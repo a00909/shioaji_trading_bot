@@ -2,7 +2,7 @@ import datetime
 
 from shioaji.constant import TicksQueryType
 
-from utils import get_api
+from tools import get_api
 
 # api = get_api(True)
 #

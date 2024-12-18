@@ -2,8 +2,8 @@ import threading
 from datetime import timedelta
 
 from tick_manager.realtime_tick_manager import RealtimeTickManager
-from realtime.utils import to_df
-from utils.app import App
+from tools.utils import to_df
+from tools.app import App
 
 app = App(True)
 rtm = RealtimeTickManager(

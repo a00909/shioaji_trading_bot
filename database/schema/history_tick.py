@@ -5,12 +5,16 @@ from database.schema import Base
 
 __all__ = ['HistoryTick', 'HistoryTickMemo']
 
+from tools.constants import DEFAULT_TIMEZONE
+
+from tools.utils import default_tickfopv1
+
 
 class HistoryTick(Base):
     __tablename__ = 'history_tick'
     # 基礎表格定義，不會直接儲存資料
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    ts = Column(DateTime, primary_key=True, index=True)
+    ts = Column(DateTime(timezone=True), primary_key=True, index=True)
     symbol = Column(String, index=True)
     close = Column(Float, nullable=False)
     volume = Column(Integer, nullable=False)
@@ -59,7 +63,7 @@ class HistoryTick(Base):
         """从字符串创建Tick对象"""
         parts = tick_string.decode('utf-8').split(separator)
         return cls(
-            ts=datetime.fromtimestamp(float(parts[0])),
+            ts=datetime.fromtimestamp(float(parts[0])).replace(tzinfo=DEFAULT_TIMEZONE),
             close=float(parts[1]),
             volume=int(parts[2]),
             bid_price=float(parts[3]),
@@ -70,6 +74,16 @@ class HistoryTick(Base):
             symbol=str(parts[8]),
             id=int(parts[9])
         )
+
+    def to_tickfopv1d1(self):
+        tick = default_tickfopv1()
+        tick.datetime = self.ts
+        tick.close = self.close
+        tick.volume = self.volume
+        tick.bid_side_total_vol = self.bid_volume
+        tick.ask_side_total_vol = self.ask_volume
+        tick.tick_type = self.tick_type
+        return tick
 
 
 class HistoryTickMemo(Base):

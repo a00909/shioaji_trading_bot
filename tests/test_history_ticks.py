@@ -4,15 +4,16 @@ import threading
 from shioaji.constant import TicksQueryType
 from shioaji.data import Ticks
 
-from utils.app import App
+from tools.app import App
 import pandas as pd
 from datetime import datetime, timedelta
 
-from utils.constants import DATE_FORMAT_SHIOAJI
+from tools.utils import get_now
+from tools.constants import DATE_FORMAT_SHIOAJI
 
 app = App(True)
 contract = app.api.Contracts.Futures.TMF.TMFR1
-date = (datetime.now().date()+timedelta(days=1)).strftime(DATE_FORMAT_SHIOAJI)
+date = (get_now().date()+timedelta(days=-1)).strftime(DATE_FORMAT_SHIOAJI)
 
 # htm = HistoryTickManager(app.api, app.redis, app.session_maker)
 # ticks = htm.get_tick(app.api.Contracts.Futures.TMF.TMFR1, '2024-11-21')
@@ -33,9 +34,8 @@ got_tick_event = threading.Event()
 
 
 def cb(ticks: Ticks):
-    df = pd.DataFrame({**h_ticks})
+    df = pd.DataFrame({**ticks})
     df.ts = pd.to_datetime(df.ts)
-    df.head()
 
     print(df)
     got_tick_event.set()
@@ -44,9 +44,11 @@ def cb(ticks: Ticks):
 h_ticks = app.api.ticks(
     contract,
     date,
-    TicksQueryType.LastCount,
+    TicksQueryType.RangeTime,
+    time_start="23:55:00",
+    time_end="23:55:54.777",
     timeout=0,
-    last_cnt=20,
+    # last_cnt=20,
     cb=cb
 )
 
