@@ -1,7 +1,7 @@
 import threading
 from datetime import timedelta
 
-from tick_manager.realtime_tick_manager import RealtimeTickManager
+from tick_manager.rtm.realtime_tick_manager import RealtimeTickManager
 from tools.utils import to_df
 from tools.app import App
 

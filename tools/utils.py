@@ -7,13 +7,14 @@ from decimal import Decimal
 import pandas as pd
 import shioaji as sj
 from dotenv import load_dotenv
+from redis.client import Redis
 from shioaji.contracts import FetchStatus
 from shioaji.data import Ticks
 
-
 from quote import QuoteManager
-from tools.constants import DEFAULT_TIMEZONE, UTC_TZ
+from tools.constants import DEFAULT_TIMEZONE, UTC_TZ, DATE_FORMAT_REDIS
 from tools.custom_logging_formatter import CustomFormatter
+from tools.serial_manager import serial_manager
 
 load_dotenv()
 
@@ -149,11 +150,32 @@ def ticks_to_tickfopv1(ticks: Ticks):
         dt = history_ts_to_datetime(ticks.ts[i])
         tick = default_tickfopv1()
         tick.datetime = dt
-        tick.close = Decimal(ticks.close[i])
+        tick.close = ticks.close[i]
         tick.volume = ticks.volume[i]
         tick.bid_side_total_vol = ticks.bid_volume[i]
         tick.ask_side_total_vol = ticks.ask_volume[i]
         tick.tick_type = ticks.tick_type[i]
         ret.append(tick)
-        i+=1
+        i += 1
     return ret
+
+
+def get_twse_date(dt: datetime):
+    """
+    轉為證交所的date\n
+    邏輯:從前一天夜盤開始就算隔天的日期\n
+    (ex: 1/1 星期一 15:00 的資料需要用 1/2去query)
+    :param dt:
+    :return:
+    """
+    if 15 <= dt.hour <= 23:
+        return dt.date() + timedelta(days=1)
+    return dt.date()
+
+
+def get_redis_date_tag(dt: datetime):
+    return get_twse_date(dt).strftime(DATE_FORMAT_REDIS)
+
+
+def get_serial(redis: Redis, key):
+    return serial_manager.get(key)

@@ -8,6 +8,7 @@ from shioaji.position import FuturePosition
 
 from strategy.strategies.data import StrategySuggestion
 from tools.dummy_shioaji import DummyShioaji
+from tools.ui_signal_emitter import ui_signal_emitter
 
 logger = logging.getLogger('Order Placer')
 
@@ -32,7 +33,10 @@ class OrderPlacer:
         self.outer_cb = outer_cb
 
     def default_order_callback(self, state: OrderState, msg: dict):
-        logger.info(f'state: {state}, msg: {msg}')
+        log_msg = f'state: {state}, msg: {msg}'
+        logger.info(log_msg)
+        ui_signal_emitter.emit_deal(log_msg)
+
         order_no = msg.get('ordno')
 
         if state in [OrderState.FuturesOrder, OrderState.StockOrder]:
@@ -43,7 +47,10 @@ class OrderPlacer:
             self.tmp_qty_counter += msg['quantity']
             self.tmp_last_deals.append(msg)
 
-            logger.info(f'order {order_no} deal {self.tmp_qty_counter}/{self.tmp_total_qty}.')
+            msg = f'order {order_no} deal {self.tmp_qty_counter}/{self.tmp_total_qty}.'
+            logger.info(msg)
+            ui_signal_emitter.emit_deal(msg)
+
             if self.tmp_qty_counter == self.tmp_total_qty:
                 self.completely_deal_event.set()
 
@@ -79,6 +86,11 @@ class OrderPlacer:
             elif p.direction == Action.Sell:
                 total_quantity -= p.quantity
 
+
+        # todo:無法對沖，需分開平倉
+        if total_quantity == 0:
+            logger.info(f'no slots.')
+            return
         logger.info(f'{total_quantity} slots will be closed.')
 
         return self.place_order(-total_quantity)

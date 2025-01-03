@@ -14,18 +14,21 @@ from strategy.strategies.abs_strategy import AbsStrategy
 from strategy.strategies.data import EntryReport
 from strategy.strategies.ma_stragegy import MaStrategy
 from tools.constants import DEFAULT_TIMEZONE
+from tools.plotter import plotter
+from tools.ui_signal_emitter import ui_signal_emitter
 from tools.utils import get_now
 
 
 class TMFStrategyRunner(AbsStrategyRunner):
 
-    def __init__(self, rtm, htm, op):
-        super().__init__(rtm, htm, op)
+    def __init__(self, htm, op, ip):
+        super().__init__(htm, op, ip)
         self.trades = None
         self.strategies: list[AbsStrategy] = []
         self.start_time = None
         self.unit = datetime.timedelta(seconds=5)
-        self.chk_timedelta = datetime.timedelta(minutes=180)
+        self.len_long = datetime.timedelta(minutes=60)
+        self.len_short = datetime.timedelta(minutes=5)
         self.finish = threading.Event()
 
         # self.default_max_position = 3
@@ -34,7 +37,7 @@ class TMFStrategyRunner(AbsStrategyRunner):
 
     def init_strategies(self):
 
-        ma_stra = MaStrategy(self.ip, self.chk_timedelta)
+        ma_stra = MaStrategy(self.ip, self.len_long, self.len_short)
 
         # add more strategies
         self.strategies.append(ma_stra)
@@ -48,35 +51,48 @@ class TMFStrategyRunner(AbsStrategyRunner):
         # indicator part
         latest_price = self.ip.latest_price()
 
-        ma = self.ip.ma(self.chk_timedelta)
-        is_increasing, slope = self.ip.is_increasing(self.chk_timedelta)
+        ma_long = self.ip.ma(self.len_long)
+        ma_short = self.ip.ma(self.len_short)
+        # slope = self.ip.slope(self.chk_timedelta, self.chk_timedelta_short)
 
-        vol_avg, va_msg = self.ip.vol_avg(self.chk_timedelta, self.unit, with_msg=True)
-        vol_avg_short, sva_msg = self.ip.vol_avg(datetime.timedelta(seconds=30), self.unit, with_msg=True)
+        vol_avg, va_msg = self.ip.vol_avg(self.len_long, self.unit, with_msg=True)
+        vma_len_short = datetime.timedelta(seconds=30)
+        vol_avg_short, sva_msg = self.ip.vol_avg(vma_len_short, self.unit, with_msg=True)
 
-        atr = self.ip.atr(self.chk_timedelta, self.unit)
+        atr = self.ip.atr(self.len_long, self.unit)
 
-        print(
+        msg = (
             f'[Indicators]\n'
             f'| newest price: {latest_price}\n'
-            f'| {self.chk_timedelta.total_seconds()}_s_ma: {ma} | slope: {slope} | is_increasing: {is_increasing}\n'
+            f'| {self.len_long.total_seconds()}_s_ma: {ma_long} \n'
+            f'| {self.len_short.total_seconds()}_s_ma: {ma_short}\n'
             f'| atr: {atr}\n'
             f'{va_msg}\n'
             f'{sva_msg}\n'
         )
+
+        ui_signal_emitter.emit_indicator(msg)
+        # print(msg)
+        # todo: remove after test
+        plotter.add_points(f'price', (self.ip.now, latest_price))
+        plotter.add_points(f'pma_{self.len_long.total_seconds()}s', (self.ip.now, ma_long))
+        plotter.add_points(f'pma_{self.len_short.total_seconds()}s', (self.ip.now, ma_short))
+        # plotter.add_points(f'vma_{self.len_long.total_seconds()}s', (self.ip.now, vol_avg))
+        # plotter.add_points(f'vma_{vma_len_short.total_seconds()}s', (self.ip.now, vol_avg_short))
 
     def wait_for_finish(self):
         self.finish.wait()
 
     @profile
     def strategy_loop(self):
+        print('tmf strategy runner loop started.')
 
         self.prepare()
 
         cur_stra_idx = -1
 
         while self.run:
-            if not self.ip.wait_for_tick():
+            if not self.ip.wait_for_update():
                 break
 
             self.print_indicators()
@@ -84,15 +100,19 @@ class TMFStrategyRunner(AbsStrategyRunner):
             if cur_stra_idx >= 0:
                 suggest = self.strategies[cur_stra_idx].out_signal()
                 if suggest and suggest.valid:
+                    # self.print_indicators() # todo: remove after test
                     self.order_placer.place_order_by_suggestion(suggest)
                     self.order_placer.wait_for_completely_deal()
                     self.update_positions()
                     cur_stra_idx = -1
+
+                    direction = 'long' if suggest.action == Action.Sell else 'short'
+                    plotter.add_points(f'{direction}_close', (self.ip.now, self.ip.latest_price()), point_only=True)
             else:
                 for e, stra in enumerate(self.strategies):
                     suggest = stra.in_signal()
                     if suggest and suggest.valid:
-                        # self.print_indicators()
+                        # self.print_indicators() # todo: remove after test
                         cur_stra_idx = e
                         self.order_placer.place_order_by_suggestion(suggest)
                         self.order_placer.wait_for_completely_deal()
@@ -108,17 +128,21 @@ class TMFStrategyRunner(AbsStrategyRunner):
                         cover_price /= len(last_deal)
 
                         er = EntryReport()
-                        er.deal_time = datetime.datetime.fromtimestamp(last_deal[0]['ts']).replace(tzinfo=DEFAULT_TIMEZONE)
+                        er.deal_time = datetime.datetime.fromtimestamp(last_deal[0]['ts']).replace(
+                            tzinfo=DEFAULT_TIMEZONE)
                         er.deal_price = cover_price
                         er.quantity = qty
                         er.action = Action.Buy if last_deal[0]['action'] == 'Buy' else Action.Sell
 
                         stra.report_entry(er)
 
+                        direction = 'long' if suggest.action == Action.Buy else 'short'
+                        plotter.add_points(f'{direction}_open', (self.ip.now, self.ip.latest_price()), point_only=True)
+
             self.ip.clear_lru_cache()
 
             # time.sleep(2)
-
+        print('tmf strategy runner loop stopped.')
         self.finish.set()
 
     def get_cover_price(self, action: Action):

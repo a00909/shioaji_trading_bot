@@ -6,6 +6,7 @@ import shioaji as sj
 from redis.client import Redis
 import numpy as np
 import pandas as pd
+from selenium.webdriver.common.devtools.v85.debugger import resume
 from shioaji import TickFOPv1
 from shioaji.backend.solace.api import TicksQueryType
 from shioaji.data import Ticks
@@ -14,13 +15,13 @@ from ta.momentum import RSIIndicator
 from data.tick_fop_v1d1 import TickFOPv1D1
 from tick_manager.rtm_extensions.backtracking_time_getter import BacktrackingTimeGetter
 from tick_manager.rtm_extensions.inday_history_getter import IndayHistoryGetter
-from tools.utils import decode_redis, history_ts_to_datetime, get_now, default_tickfopv1, ticks_to_tickfopv1
-from tools.constants import DATE_FORMAT_SHIOAJI, DEFAULT_TIMEZONE
+from tools.utils import decode_redis, history_ts_to_datetime, get_now, default_tickfopv1, ticks_to_tickfopv1, \
+    get_twse_date, get_redis_date_tag, get_serial
+from tools.constants import DATE_FORMAT_SHIOAJI, DEFAULT_TIMEZONE, DATE_FORMAT_REDIS
 
 
 class RealtimeTickManager:
     realtime_key_prefix = 'realtime.tick'
-    date_format_redis = '%Y.%m.%d'
 
     def __init__(self, api: sj.Shioaji, redis, contract):
         self.api = api
@@ -35,7 +36,7 @@ class RealtimeTickManager:
         self.tick_received_event = threading.Event()
 
         # 目前只用於補齊in-day history
-        self.start_time: datetime = None
+        # self.start_time: datetime = None
 
         self.last_end_time: datetime = None
 
@@ -59,7 +60,7 @@ class RealtimeTickManager:
 
         ]
 
-    def start(self):
+    def start(self, wait_for_ready=True):
         if self.started:
             print('rtm already started.')
             return
@@ -68,7 +69,11 @@ class RealtimeTickManager:
         for sub in self.subs:
             self.api.quote.subscribe(**sub)
         self.started = True
-        print('rtm started.')
+        print('rtm started. waiting for ready...')
+
+        if wait_for_ready:
+            self.wait_for_ready()
+            print('rtm ready.')
 
     def stop(self):
         if not self.started:
@@ -85,6 +90,10 @@ class RealtimeTickManager:
 
     def wait_for_ready(self):
         self.ihg.wait_for_finish()
+
+    @property
+    def start_time(self):
+        return self.ihg.start_time
 
     def on_tick_fop_v1_handler(self, _exchange: sj.Exchange, tick: TickFOPv1):
         key = self.redis_key()
@@ -116,7 +125,7 @@ class RealtimeTickManager:
 
     # redis
     def redis_key(self):
-        return f'{self.realtime_key_prefix}:{self.symbol}:{self.get_date_tag().strftime(self.date_format_redis)}'
+        return f'{self.realtime_key_prefix}:{self.symbol}:{self.get_date_tag()}'
 
     def flush_keys(self):
         keys: list[bytes] = self.redis.keys(f'{self.realtime_key_prefix}*')
@@ -129,32 +138,30 @@ class RealtimeTickManager:
 
     def get_tick_serial(self):
         key = f'{self.realtime_key_prefix}.serial:{self.symbol}'
-        return int(self.redis.incr(key))
+        return get_serial(self.redis, key)
 
     def get_date_tag(self):
-        now_dt = get_now()
-        if 15 <= now_dt.hour <= 23:
-            return now_dt.date() + timedelta(days=1)
-        return now_dt.date()
+        return get_redis_date_tag(get_now())
 
     # functions
     def wait_for_tick(self):
         self.tick_received_event.wait(timeout=10)
+        if not self.started:
+            return False
         self.tick_received_event.clear()
         return True
 
-    def get_ticks_by_backtracking_time(self, backtracking_time: timedelta) -> list[TickFOPv1]:
-        end = get_now()
-        start = end - backtracking_time
-
-        results = self.btg.get(start, end)
-
-        return results
+    def get_ticks_by_time_range(self, start: datetime, end: datetime, with_start=True, with_end=True) -> list[
+        TickFOPv1D1]:
+        return self.btg.get(start, end, with_start, with_end)
 
     def get_ticks_by_backward_idx(self, backward_idx=0) -> list[sj.TickFOPv1]:
         data = self.redis.zrange(self.redis_key(), -1 - backward_idx, -1)
 
         return [TickFOPv1D1.deserialize(tick) for tick in data]
+
+    def latest_tick(self):
+        return self.get_ticks_by_backward_idx()[0]
 
     def get_ticks_by_index(self, start=0, end=-1):
         data = self.redis.zrange(self.redis_key(), start=start, end=end)

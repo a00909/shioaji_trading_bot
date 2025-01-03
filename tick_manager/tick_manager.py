@@ -1,7 +1,5 @@
-import datetime
-
 from tick_manager.history_tick_manager import HistoryTickManager
-from tick_manager.realtime_tick_manager import RealtimeTickManager
+from tick_manager.rtm.realtime_tick_manager import RealtimeTickManager
 
 
 class TickManager:

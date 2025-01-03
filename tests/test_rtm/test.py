@@ -1,7 +1,4 @@
-import time
-from datetime import timedelta
-
-from tick_manager.realtime_tick_manager import RealtimeTickManager
+from tick_manager.rtm.realtime_tick_manager import RealtimeTickManager
 from tools.app import App
 import shioaji as sj
 import pandas as pd

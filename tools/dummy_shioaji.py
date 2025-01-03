@@ -5,7 +5,7 @@ from shioaji.constant import OrderState, Action
 from shioaji.position import FuturePosition, FutureProfitLoss
 
 from tick_manager.history_tick_manager import HistoryTickManager
-from tools.dummy_rtm import DummyRealtimeTickManager
+from tick_manager.rtm.dummy_rtm import DummyRealtimeTickManager
 
 
 class DummyShioaji:
@@ -36,7 +36,7 @@ class DummyShioaji:
         self.Order = Order
 
     def list_positions(self, account: str) -> List[dict]:
-        cur_price = self.dummy_rtm.get_ticks_by_backward_idx()[0].close
+        cur_price = self.dummy_rtm.latest_tick().close
 
         for p in self.long_positions:
             p.pnl = (cur_price - p.price) * p.quantity * self.price_per_point
@@ -52,9 +52,10 @@ class DummyShioaji:
     def set_order_callback(self, callback: Callable[[str, dict], None]):
         self.order_callback = callback
 
-    def __get_id(self):
+    def __get_id(self, increase=True):
         ret = self.id_counter
-        self.id_counter += 1
+        if increase:
+            self.id_counter += 1
         return ret
 
     def place_order(self, account: str, order: Order, cb: Callable):
@@ -85,7 +86,7 @@ class DummyShioaji:
             self.order_callback(order_state, msg)
 
     def latest_tick(self):
-        return self.dummy_rtm.get_ticks_by_backward_idx()[0]
+        return self.dummy_rtm.latest_tick()
 
     def create_future_profit_loss(self, position, quantity, pnl, price):
         return FutureProfitLoss(
@@ -102,7 +103,7 @@ class DummyShioaji:
 
     def create_future_position(self, code, direction, quantity, price):
         return FuturePosition(
-            id=self.__get_id(),
+            id=self.__get_id(increase=False),
             code=code,
             direction=direction,
             quantity=quantity,
@@ -124,7 +125,7 @@ class DummyShioaji:
                 position = self.short_positions[0]
                 if position.quantity <= remaining_quantity:
                     remaining_quantity -= position.quantity
-                    pnl = self.pnl(position.price,latest_price,position.quantity,short=True)
+                    pnl = self.pnl(position.price, latest_price, position.quantity, short=True)
                     self.profit_loss.append(
                         self.create_future_profit_loss(
                             position,
@@ -136,7 +137,7 @@ class DummyShioaji:
                     self.short_positions.pop(0)
                 else:
                     position.quantity -= remaining_quantity
-                    pnl = self.pnl(position.price,latest_price,position.quantity,short=True)
+                    pnl = self.pnl(position.price, latest_price, position.quantity, short=True)
                     self.profit_loss.append(
                         self.create_future_profit_loss(
                             position,
@@ -158,7 +159,7 @@ class DummyShioaji:
                 position = self.long_positions[0]
                 if position.quantity <= remaining_quantity:
                     remaining_quantity -= position.quantity
-                    pnl = self.pnl(position.price,latest_price,position.quantity)
+                    pnl = self.pnl(position.price, latest_price, position.quantity)
                     self.profit_loss.append(
                         self.create_future_profit_loss(
                             position,
@@ -170,7 +171,7 @@ class DummyShioaji:
                     self.long_positions.pop(0)
                 else:
                     position.quantity -= remaining_quantity
-                    pnl = self.pnl(position.price,latest_price,position.quantity)
+                    pnl = self.pnl(position.price, latest_price, position.quantity)
                     self.profit_loss.append(
                         self.create_future_profit_loss(
                             position,

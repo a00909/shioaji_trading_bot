@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from strategy.strategies.data import StrategySuggestion, EntryReport
-from strategy.tools.indicator_provider import IndicatorProvider
+from strategy.tools.indicator_provider.indicator_provider import IndicatorProvider
 
 
 class AbsStrategy(ABC):

@@ -9,11 +9,11 @@ from shioaji.data import Ticks
 
 from data.tick_fop_v1d1 import TickFOPv1D1
 from tools.constants import DATE_FORMAT_SHIOAJI
-from tools.utils import ticks_to_tickfopv1
+from tools.utils import ticks_to_tickfopv1, get_twse_date
 
 
 class IndayHistoryGetter:
-    def __init__(self, redis, redis_key: Callable[[], str], api, contract, get_serial: Callable[[], int]):
+    def __init__(self, redis, redis_key: Callable[[], str], api, contract, get_serial: Callable[[], int], window_size):
         self.redis: Redis = redis
         self.redis_key = redis_key
         self.last_end_time: datetime = None
@@ -26,9 +26,12 @@ class IndayHistoryGetter:
         self.received_count = 0
         self.received_total = 0
 
+        self.buffer: list[TickFOPv1D1] = []
+        self.window_size = window_size
+
     def check_inday_history(self):
         key = self.redis_key()
-        res = self.redis.zrange(key, -2, -1, withscores=False)
+        res = self.redis.zrange(key, -1, -1, withscores=False)
         if res:
             last_tick = TickFOPv1D1.deserialize(res[0])
             self.last_end_time = last_tick.datetime
@@ -48,20 +51,13 @@ class IndayHistoryGetter:
         print('in-day history received.')
         self.print_ticks(ticks)
 
-        key = self.redis_key()
+        # key = self.redis_key()
 
         tickfopv1s = ticks_to_tickfopv1(ticks)
 
-        data = {}
-        for tfop in tickfopv1s:
-            if tfop.datetime >= self.start_time:
-                break
-            data[tfop.serialize(self.get_serial())] = tfop.datetime.timestamp()
-
-        self.redis.zadd(key, data)
-        print('redis data finished.')
+        self.buffer.extend(tickfopv1s)
         self.received_count += 1
-        print(f'redis data inserted.{self.received_count}/{self.received_total}')
+        print(f'data received. {self.received_count}/{self.received_total}')
 
         if self.received_total or self.received_count >= self.received_total:
             self.set_finish()
@@ -71,40 +67,39 @@ class IndayHistoryGetter:
         self.finish.wait()
 
     def prepare_in_day_history(self):
-        date = self.start_time.date()
-        if 15 <= self.start_time.hour <= 23:
-            date += timedelta(days=1)
+        # normalize_date
+        query_date = get_twse_date(self.start_time)
 
-        data: list | None = None
-        if not self.last_end_time:
-            data = [None]
+        if self.last_end_time:
+            query_start = max(self.last_end_time, self.start_time - self.window_size)
+        else:
+            query_start = self.start_time - self.window_size
+        query_end = self.start_time
+
+        # todo: check這裡的邏輯, 是否可能會造成換日漏掉資料
+        print('in day query: ',query_start.date(), query_end.date())
+        if query_start.date() == query_end.date():
+
+            data = [(query_start.time().isoformat(), query_end.time().isoformat())]
+        else:
+            data = [
+                (query_start.time().isoformat(), "23:59:59.999999"),
+                ("00:00:00", query_end.time().isoformat())
+            ]
+
+        for d in data:
+            print(f'query range: {d}')
             self.api.ticks(
                 self.contract,
-                date.strftime(DATE_FORMAT_SHIOAJI),
-                TicksQueryType.AllDay,
+                query_date.strftime(DATE_FORMAT_SHIOAJI),
+                TicksQueryType.RangeTime,
+                time_start=d[0],
+                time_end=d[1],
                 timeout=0,  # 非阻塞 timeout = 0
                 cb=self.inday_history_cb
             )
-        else:  # todo: check這裡的邏輯, 是否可能會造成換日漏掉資料
-            if self.last_end_time.date() == self.start_time.date():
-                print(self.last_end_time.date(), self.start_time.date())
-                data = [(self.last_end_time.time().isoformat(), self.start_time.time().isoformat())]
-            else:
-                data = [
-                    (self.last_end_time.time().isoformat(), "23:59:59.999999"),
-                    ("00:00:00", self.start_time.time().isoformat())
-                ]
-
-            for d in data:
-                print(f'query range: {d}')
-                self.api.ticks(
-                    self.contract,
-                    date.strftime(DATE_FORMAT_SHIOAJI),
-                    TicksQueryType.RangeTime,
-                    time_start=d[0],
-                    time_end=d[1],
-                    timeout=0,  # 非阻塞 timeout = 0
-                    cb=self.inday_history_cb
-                )
 
         self.received_total = len(data) if data else 0
+
+    def get_data(self):
+        return self.buffer

@@ -1,18 +1,17 @@
 import threading
 from abc import ABC, abstractmethod
 
-from shioaji import shioaji
 from shioaji.constant import Action, OrderState
 from shioaji.position import FuturePosition
 
 from strategy.tools.order_placer import OrderPlacer
-from strategy.tools.indicator_provider import IndicatorProvider
+from strategy.tools.indicator_provider.indicator_provider import IndicatorProvider
 from tick_manager.history_tick_manager import HistoryTickManager
 
 
 class AbsStrategyRunner(ABC):
 
-    def __init__(self, rtm, htm, op):
+    def __init__(self, htm, op,ip):
         # self.rtm: RealtimeTickManager = rtm
         self.history_tick_manager: HistoryTickManager = htm
         self.order_placer: OrderPlacer = op
@@ -25,7 +24,7 @@ class AbsStrategyRunner(ABC):
         self.positions: list = []
         self.long_positions: list = []
         self.short_positions: list = []
-        self.ip = IndicatorProvider(rtm)
+        self.ip:IndicatorProvider = ip
 
     @abstractmethod
     def order_callback(self, state: OrderState, msg: dict):

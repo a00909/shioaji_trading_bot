@@ -9,18 +9,62 @@ from tools.utils import get_now
 
 
 class BacktrackingTimeGetter:
-    def __init__(self, redis, get_key: Callable[[], str]):
+    def __init__(self, redis, get_key: Callable[[], str], remove_old=True):
         self.last_start: datetime = None
         self.last_end: datetime = None
         self.get_key: Callable[[], str] = get_key
         self.redis = redis
         self.buffer: list[TickFOPv1D1] = []
         self.max_buffer_size = 2197152
+        self.expire_limit = datetime.timedelta(hours=5)
+        self.remain_range = datetime.timedelta(hours=4)
+        self.remove_old = remove_old
+
+    def remove_old_data(self):
+        now = get_now()
+        expire_time = now - self.expire_limit
+
+        if not self.last_start or self.last_start >= expire_time:
+            return
+
+        new_start = now - self.remain_range
+
+        new_start_idx = bisect_left(self.buffer, new_start)
+
+        if new_start_idx == -1:
+            raise Exception('Should not be here!')
+
+        self.buffer = self.buffer[new_start_idx:]
+        self.last_start = new_start
+
+    def get(self, start: datetime, end: datetime, with_start=True, with_end=True) -> list[TickFOPv1D1]:
+        results = self.__get(start, end)
+        if not results:
+            return []
+
+        # 如果不包含 start
+        if not with_start:
+            cur = 0
+            while cur < len(results) and start >= results[cur].datetime:
+                cur += 1
+            results = results[cur:]
+
+        # 如果不包含 end
+        if not with_end:
+            cur = len(results) - 1
+            while cur >= 0 and end <= results[cur].datetime:
+                cur -= 1
+            results = results[:cur + 1]
+
+        return results
 
     @profile
-    def get(self, start, end) -> list[TickFOPv1D1]:
+    def __get(self, start, end) -> list[TickFOPv1D1]:
         # end = get_now()
         # start = end - length
+        if self.remove_old:
+            self.remove_old_data()
+
         key = self.get_key()
 
         if self.last_start:
@@ -31,7 +75,7 @@ class BacktrackingTimeGetter:
 
                 return self.buffer[l:r]
 
-            elif self.last_start <= start < end:  # last_end < end
+            elif self.last_start <= start <= end:  # last_end < end
                 l_score = self.last_end
                 r_score = end
                 data = [(l_score, r_score)]
@@ -39,7 +83,7 @@ class BacktrackingTimeGetter:
                 new_end = r_score
                 ret_r = None
                 ret_l = -1
-            elif start < end <= self.last_end:
+            elif start <= end <= self.last_end:
                 l_score = start
                 r_score = self.last_start
                 data = [(l_score, r_score)]
@@ -47,7 +91,7 @@ class BacktrackingTimeGetter:
                 new_end = r_score
                 ret_l = 0
                 ret_r = -1
-            elif start < self.last_start and self.last_end < end:
+            elif start <= self.last_start and self.last_end <= end:
                 l_score1 = start
                 r_score1 = self.last_start
                 l_score2 = self.last_end
@@ -61,7 +105,12 @@ class BacktrackingTimeGetter:
                 ret_r = None
 
             else:
-                raise Exception()
+                raise Exception(
+                    f'start: {start} | '
+                    f'end: {end} | '
+                    f'last_start: {self.last_start} | '
+                    f'last_end: {self.last_end}'
+                )
 
             for d in data:
                 new_data_raw = self.redis.zrangebyscore(key, d[0].timestamp(), d[1].timestamp(), withscores=False)

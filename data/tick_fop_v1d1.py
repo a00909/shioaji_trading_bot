@@ -8,6 +8,8 @@ from tools.utils import decode_redis
 
 
 class TickFOPv1D1(TickFOPv1):
+    close: float
+
     def __init__(self):
         pass
 
@@ -21,7 +23,7 @@ class TickFOPv1D1(TickFOPv1):
         tickv1d1.bid_side_total_vol = tick.bid_side_total_vol
         tickv1d1.ask_side_total_vol = tick.ask_side_total_vol
         tickv1d1.avg_price = tick.avg_price
-        tickv1d1.close = tick.close
+        tickv1d1.close = float(tick.close)
         tickv1d1.high = tick.high
         tickv1d1.low = tick.low
         tickv1d1.amount = tick.amount
