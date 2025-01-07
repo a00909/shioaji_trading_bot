@@ -64,7 +64,7 @@ class OrderPlacer:
     def get_last_deal_info(self):
         return self.tmp_last_deals
 
-    def __reset_counter(self, total_qty):
+    def _reset_counter(self, total_qty):
         self.tmp_qty_counter = 0
         self.tmp_total_qty = total_qty
         self.tmp_last_deals.clear()
@@ -123,7 +123,7 @@ class OrderPlacer:
 
     def place_order(self, qty, act=None, cb=None):
         order = self.get_default_order_data(qty, act)
-        self.__reset_counter(order.quantity)
+        self._reset_counter(order.quantity)
 
         return self.api.place_order(self.contract, order, cb=cb)
 

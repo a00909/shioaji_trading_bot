@@ -30,8 +30,8 @@ class RealtimeTickManager(RealtimeTickManagerBase):
         super().__init__()
         self.api = api
         self.redis: Redis = redis
-        self.api.quote.set_on_tick_fop_v1_callback(self.__on_tick_fop_v1_handler)
-        self.api.quote.set_on_bidask_fop_v1_callback(self.__on_bidask_fop_v1_handler)
+        self.api.quote.set_on_tick_fop_v1_callback(self._on_tick_fop_v1_handler)
+        self.api.quote.set_on_bidask_fop_v1_callback(self._on_bidask_fop_v1_handler)
         self.contract = contract
         self.symbol = contract.symbol
 
@@ -45,10 +45,10 @@ class RealtimeTickManager(RealtimeTickManagerBase):
         # self.btg = BacktrackingTimeGetter(self.redis, self.__redis_key)
         self.ihg = IndayHistoryGetter(
             self.redis,
-            self.__redis_key,
+            self._redis_key,
             self.api,
             self.contract,
-            self.__get_tick_serial,
+            self._get_tick_serial,
             self.window_size
         )
 
@@ -93,19 +93,19 @@ class RealtimeTickManager(RealtimeTickManagerBase):
         self.started = False
         self.tick_received_event.set()  # for those who may wait for the event to stop
 
-        self.__dump_to_redis()
+        self._dump_to_redis()
         print('rtm stopped.')
 
         # event handler
 
     def wait_for_ready(self):
         self.ihg.wait_for_finish()
-        self.__combine_data()
+        self._combine_data()
 
-    def __combine_data(self):
+    def _combine_data(self):
         in_day_history = self.ihg.get_data()
         older_raw = self.redis.zrangebyscore(  # 實際只會抓到last_end
-            self.__redis_key(),
+            self._redis_key(),
             (self.start_time - self.window_size).timestamp(),
             self.start_time.timestamp(),
             withscores=False
@@ -133,7 +133,7 @@ class RealtimeTickManager(RealtimeTickManagerBase):
 
         if rm_count > 0:
             self.redis.zremrangebyrank(
-                self.__redis_key(),
+                self._redis_key(),
                 -rm_count,
                 -1
             )
@@ -143,7 +143,7 @@ class RealtimeTickManager(RealtimeTickManagerBase):
     def start_time(self) -> datetime:
         return self.ihg.start_time
 
-    def __on_tick_fop_v1_handler(self, _exchange: sj.Exchange, tick: TickFOPv1):
+    def _on_tick_fop_v1_handler(self, _exchange: sj.Exchange, tick: TickFOPv1):
         tick.datetime = tick.datetime.replace(tzinfo=DEFAULT_TIMEZONE)
 
         tickv1d1 = TickFOPv1D1.tickfopv1_to_v1d1(tick)
@@ -173,14 +173,14 @@ class RealtimeTickManager(RealtimeTickManagerBase):
                 self.ihg.set_finish()
                 print('rtm ready.')
 
-    def __on_bidask_fop_v1_handler(self, _exchange: sj.Exchange, bidask: sj.BidAskFOPv1):
+    def _on_bidask_fop_v1_handler(self, _exchange: sj.Exchange, bidask: sj.BidAskFOPv1):
         print(f'[bidask_handler] {bidask}')
 
     # redis
-    def __redis_key(self):
-        return f'{self.realtime_key_prefix}:{self.symbol}:{self.__get_date_tag()}'
+    def _redis_key(self):
+        return f'{self.realtime_key_prefix}:{self.symbol}:{self._get_date_tag()}'
 
-    def __flush_keys(self):
+    def _flush_keys(self):
         keys: list[bytes] = self.redis.keys(f'{self.realtime_key_prefix}*')
 
         pipe = self.redis.pipeline()
@@ -189,11 +189,11 @@ class RealtimeTickManager(RealtimeTickManagerBase):
 
         pipe.execute()
 
-    def __get_tick_serial(self):
+    def _get_tick_serial(self):
         key = f'{self.realtime_key_prefix}.serial:{self.symbol}'
         return get_serial(self.redis, key)
 
-    def __get_date_tag(self):
+    def _get_date_tag(self):
         # return get_redis_date_tag(self.start_time if self.start_time else get_now())
         return get_redis_date_tag(self.start_time)
 
@@ -209,10 +209,10 @@ class RealtimeTickManager(RealtimeTickManagerBase):
 
         return True
 
-    def __dump_to_redis(self):
-        key = self.__redis_key()
+    def _dump_to_redis(self):
+        key = self._redis_key()
         data = {
-            t.serialize(self.__get_tick_serial()): t.datetime.timestamp()
+            t.serialize(self._get_tick_serial()): t.datetime.timestamp()
             for t in self.buffer[self.new_data_index:]
         }
         self.redis.zadd(key, data)

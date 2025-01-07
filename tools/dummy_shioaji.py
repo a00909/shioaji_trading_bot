@@ -52,7 +52,7 @@ class DummyShioaji:
     def set_order_callback(self, callback: Callable[[str, dict], None]):
         self.order_callback = callback
 
-    def __get_id(self, increase=True):
+    def _get_id(self, increase=True):
         ret = self.id_counter
         if increase:
             self.id_counter += 1
@@ -62,7 +62,7 @@ class DummyShioaji:
         if self.order_callback:
             # Simulate an order state callback
             order_state = OrderState.FuturesDeal
-            oid = self.__get_id()
+            oid = self._get_id()
             lt = self.latest_tick()
             # msg = {
             #     'operation': {'op_type': 'New', 'op_code': '00', 'op_msg': ''},
@@ -103,7 +103,7 @@ class DummyShioaji:
 
     def create_future_position(self, code, direction, quantity, price):
         return FuturePosition(
-            id=self.__get_id(increase=False),
+            id=self._get_id(increase=False),
             code=code,
             direction=direction,
             quantity=quantity,

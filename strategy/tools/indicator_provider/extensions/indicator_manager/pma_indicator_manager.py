@@ -20,26 +20,26 @@ class PMAIndicatorManager(AbsIndicatorManager):
 
         if last:
             # 增量更新
-            data_count, value = self.__calc_incr(last, now)
+            data_count, value = self._calc_incr(last, now)
         else:
-            data_count, value = self.__calc_first(now)
+            data_count, value = self._calc_first(now)
 
         new.data_count = data_count
         new.value = value
 
         return new
 
-    def __calc_first(self, now) -> tuple[int, float]:
+    def _calc_first(self, now) -> tuple[int, float]:
         ticks = self.rtm.get_ticks_by_time_range(now - self.length, now)
         if len(ticks) == 0:
             raise Exception('no data to calculate!')
 
         data_count = sum(tick.volume for tick in ticks)
         value = sum(tick.close * tick.volume for tick in ticks) / data_count
-        self.__collect_end_count(ticks)
+        self._collect_end_count(ticks)
         return data_count, value
 
-    def __calc_incr(self, last, now) -> tuple[int, float]:
+    def _calc_incr(self, last, now) -> tuple[int, float]:
         # 增量更新
 
         if now == last.datetime:
@@ -66,16 +66,16 @@ class PMAIndicatorManager(AbsIndicatorManager):
         )
         value = (last.value * last.data_count + added_val - deprecated_val) / data_count
 
-        self.__collect_end_count(added_ticks)
+        self._collect_end_count(added_ticks)
 
         # for test
-        org_data_count, org_value = self.__calc_first(now)
+        org_data_count, org_value = self._calc_first(now)
         if org_data_count != data_count or (org_value-value)/org_value >= 0.001:
             raise Exception(f'Incorrect value! {org_data_count},{data_count} | {org_value},{value}')
 
         return data_count, value
 
-    def __collect_end_count(self, ticks: list[TickFOPv1D1]):
+    def _collect_end_count(self, ticks: list[TickFOPv1D1]):
         last_dt = ticks[-1].datetime
         p = len(ticks) - 1
         end_values = 0

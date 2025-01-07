@@ -15,15 +15,15 @@ class UISignalEmitter(QObject):
         self.on = True
 
     def emit_indicator(self, msg, end='\n'):
-        self.__emit(self.indicator_signal, msg + end)
+        self._emit(self.indicator_signal, msg + end)
 
     def emit_deal(self, msg, end='\n'):
-        self.__emit(self.deal_signal, msg + end)
+        self._emit(self.deal_signal, msg + end)
 
     def emit_strategy(self, msg, end='\n'):
-        self.__emit(self.strategy_signal, msg + end)
+        self._emit(self.strategy_signal, msg + end)
 
-    def __emit(self, signal, msg):
+    def _emit(self, signal, msg):
         if self.on:
             signal.emit(msg)
 

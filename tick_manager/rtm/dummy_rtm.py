@@ -52,7 +52,7 @@ class DummyRealtimeTickManager(RealtimeTickManagerBase):
     def wait_for_ready(self):
         pass
 
-    def __print_msg(self):
+    def _print_msg(self):
         if self.window_right % 3758 == 0:
             now = get_now()
             print(
@@ -70,7 +70,7 @@ class DummyRealtimeTickManager(RealtimeTickManagerBase):
     # functions
     def wait_for_tick(self):
         if self.window_right < 10000:  # len(self.data) - 1:
-            self.__print_msg()
+            self._print_msg()
 
             self.window_right += 1
             self._update_window_left()
