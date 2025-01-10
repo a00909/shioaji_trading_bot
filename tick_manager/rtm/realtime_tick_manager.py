@@ -68,6 +68,7 @@ class RealtimeTickManager(RealtimeTickManagerBase):
         self.need_lock = True
         self.buffer_lock = threading.Lock()
         self.new_data_index = -1
+        self.skip_combine = False
 
     def start(self, wait_for_ready=True):
         if self.started:
@@ -100,7 +101,8 @@ class RealtimeTickManager(RealtimeTickManagerBase):
 
     def wait_for_ready(self):
         self.ihg.wait_for_finish()
-        self._combine_data()
+        if not self.skip_combine:
+            self._combine_data()
 
     def _combine_data(self):
         in_day_history = self.ihg.get_data()
@@ -171,6 +173,8 @@ class RealtimeTickManager(RealtimeTickManagerBase):
                 self.ihg.prepare_in_day_history()
             else:
                 self.ihg.set_finish()
+                self.skip_combine = True
+                self.need_lock = False
                 print('rtm ready.')
 
     def _on_bidask_fop_v1_handler(self, _exchange: sj.Exchange, bidask: sj.BidAskFOPv1):

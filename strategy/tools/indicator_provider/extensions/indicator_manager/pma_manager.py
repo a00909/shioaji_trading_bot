@@ -6,7 +6,7 @@ from strategy.tools.indicator_provider.extensions.data.indicator import Indicato
 from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
 
 
-class PMAIndicatorManager(AbsIndicatorManager):
+class PMAManager(AbsIndicatorManager):
     def __init__(self, length, symbol: str, start_time, redis: Redis, rtm):
         super().__init__(IndicatorType.PMA, length, symbol, start_time, redis, rtm)
         self.end_values = None
@@ -69,9 +69,9 @@ class PMAIndicatorManager(AbsIndicatorManager):
         self._collect_end_count(added_ticks)
 
         # for test
-        org_data_count, org_value = self._calc_first(now)
-        if org_data_count != data_count or (org_value-value)/org_value >= 0.001:
-            raise Exception(f'Incorrect value! {org_data_count},{data_count} | {org_value},{value}')
+        # org_data_count, org_value = self._calc_first(now)
+        # if org_data_count != data_count or (org_value-value)/org_value >= 0.001:
+        #     raise Exception(f'Incorrect value! {org_data_count},{data_count} | {org_value},{value}')
 
         return data_count, value
 

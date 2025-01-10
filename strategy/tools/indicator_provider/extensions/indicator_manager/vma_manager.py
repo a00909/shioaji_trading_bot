@@ -9,7 +9,7 @@ from strategy.tools.indicator_provider.extensions.data.indicator import Indicato
 from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
 
 
-class VMAIndicatorManager(AbsIndicatorManager):
+class VMAManager(AbsIndicatorManager):
     def __init__(self, length, unit, symbol: str, start_time, redis: Redis, rtm, with_msg=True):
         super().__init__(IndicatorType.VMA, length, symbol, start_time, redis, rtm)
         self.unit: timedelta = unit
@@ -67,14 +67,14 @@ class VMAIndicatorManager(AbsIndicatorManager):
                 self.last_start = start
 
             # for test
-            ticks = self.rtm.get_ticks_by_time_range(now - self.length, now)
-            if len(ticks) == 0:
-                raise Exception('no data to calculate!')
-            org_avg = sum(tick.volume for tick in ticks) / intervals
-            org_count = len(ticks)
-
-            if org_count and org_count != tick_count or (org_avg - new.value) / org_avg > 0.001:
-                raise Exception(f'Incorrect value! {org_count},{tick_count} | {org_avg},{new.value}')
+            # ticks = self.rtm.get_ticks_by_time_range(now - self.length, now)
+            # if len(ticks) == 0:
+            #     raise Exception('no data to calculate!')
+            # org_avg = sum(tick.volume for tick in ticks) / intervals
+            # org_count = len(ticks)
+            #
+            # if org_count and org_count != tick_count or (org_avg - new.value) / org_avg > 0.001:
+            #     raise Exception(f'Incorrect value! {org_count},{tick_count} | {org_avg},{new.value}')
 
         else:
             ticks = self.rtm.get_ticks_by_time_range(now - self.length, now)

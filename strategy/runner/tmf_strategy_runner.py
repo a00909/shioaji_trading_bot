@@ -59,14 +59,14 @@ class TMFStrategyRunner(AbsStrategyRunner):
         vma_len_short = datetime.timedelta(seconds=30)
         vol_avg_short, sva_msg = self.ip.vol_avg(vma_len_short, self.unit, with_msg=True)
 
-        atr = self.ip.atr(self.len_long, self.unit)
+        # atr = self.ip.atr(self.len_long, self.unit)
 
         msg = (
             f'[Indicators]\n'
             f'| newest price: {latest_price}\n'
             f'| {self.len_long.total_seconds()}_s_ma: {ma_long} \n'
             f'| {self.len_short.total_seconds()}_s_ma: {ma_short}\n'
-            f'| atr: {atr}\n'
+            # f'| atr: {atr}\n'
             f'{va_msg}\n'
             f'{sva_msg}\n'
         )

@@ -3,8 +3,8 @@ from functools import lru_cache
 
 from strategy.tools.indicator_provider.extensions.indicator_manager.abs_indicator_manager import AbsIndicatorManager
 from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
-from strategy.tools.indicator_provider.extensions.indicator_manager.pma_indicator_manager import PMAIndicatorManager
-from strategy.tools.indicator_provider.extensions.indicator_manager.vma_indicator_manager import VMAIndicatorManager
+from strategy.tools.indicator_provider.extensions.indicator_manager.pma_manager import PMAManager
+from strategy.tools.indicator_provider.extensions.indicator_manager.vma_manager import VMAManager
 from tick_manager.rtm.realtime_tick_manager import RealtimeTickManager
 
 
@@ -50,7 +50,7 @@ class IndicatorProvider:
         if key in self.indicator_managers:
             return self.indicator_managers[(IndicatorType.PMA, length)]()
 
-        im = PMAIndicatorManager(
+        im = PMAManager(
             length,
             self.rtm.symbol,
             self.rtm.start_time,
@@ -75,7 +75,7 @@ class IndicatorProvider:
                 return self.indicator_managers[key](), self.indicator_managers[key].msg
             return self.indicator_managers[key]()
 
-        im = VMAIndicatorManager(
+        im = VMAManager(
             length,
             unit,
             self.rtm.symbol,
