@@ -14,7 +14,6 @@ from tools.constants import DATE_FORMAT_SHIOAJI
 
 
 class HistoryTickManager:
-    memo_key = 'history.tick.memo'
     history_ticks_key_prefix = 'history.tick'
     date_format_redis = '%Y.%m.%d'
     date_format_db = '%Y-%m-%d'
@@ -28,6 +27,10 @@ class HistoryTickManager:
     def redis_key(self, symbol, date):
         return f'{self.history_ticks_key_prefix}:{symbol}:{date}'
 
+    @staticmethod
+    def _memo_key(key):
+        return f'{key}:memo'
+
     def set_ticks_to_redis(self, ticks: list[HistoryTick], symbol, date):
         pipe = self.redis.pipeline()
         key = self.redis_key(symbol, date)
@@ -37,10 +40,10 @@ class HistoryTickManager:
             data.append(i.to_string())
 
         pipe.rpush(key, *data)
-        pipe.sadd(self.memo_key, key)
+        pipe.sadd(self._memo_key(key), key)
 
         pipe.expire(key, 86400)
-        pipe.expire(self.memo_key, 86400)
+        pipe.expire(self._memo_key(key), 86400)
 
         try:
             pipe.execute(True)
@@ -53,7 +56,7 @@ class HistoryTickManager:
     def get_tick_from_redis(self, symbol, date):
         key = self.redis_key(symbol, date)
 
-        if self.redis.sismember(self.memo_key, key):
+        if self.redis.sismember(self._memo_key(key), key):
             results = self.redis.lrange(key, 0, -1)
             return True, results
         return False, []
