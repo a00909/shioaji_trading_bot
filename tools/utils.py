@@ -1,3 +1,4 @@
+import functools
 import logging
 import os
 import time
@@ -52,7 +53,7 @@ def get_api(simulation: bool = True) -> sj.Shioaji:
 
 
 def decode_redis(data: bytes) -> str:
-    return data.decode('utf-8')
+    return data.decode()
 
 
 def history_ts_to_datetime(ts: int):
@@ -132,14 +133,14 @@ def to_df(ticks: list[sj.TickFOPv1]):
 
 def init_custom_logger():
     ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
+    ch.setLevel(logging.INFO)
 
     ch.setFormatter(CustomFormatter())
 
     logger = logging.getLogger()
     logger.addHandler(ch)
 
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
 
 def ticks_to_tickfopv1(ticks: Ticks):
@@ -179,3 +180,7 @@ def get_redis_date_tag(dt: datetime):
 
 def get_serial(redis: Redis, key):
     return serial_manager.get(key)
+
+
+def deviation(val1, val2):
+    return abs(val1 - val2) / val1

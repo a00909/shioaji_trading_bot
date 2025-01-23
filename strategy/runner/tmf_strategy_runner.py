@@ -37,7 +37,7 @@ class TMFStrategyRunner(AbsStrategyRunner):
 
     def init_strategies(self):
 
-        ma_stra = MaStrategy(self.ip, self.len_long, self.len_short)
+        ma_stra = MaStrategy(self.ip, self.len_long, self.len_short, self.unit)
 
         # add more strategies
         self.strategies.append(ma_stra)
@@ -58,6 +58,7 @@ class TMFStrategyRunner(AbsStrategyRunner):
         vol_avg, va_msg = self.ip.vol_avg(self.len_long, self.unit, with_msg=True)
         vma_len_short = datetime.timedelta(seconds=30)
         vol_avg_short, sva_msg = self.ip.vol_avg(vma_len_short, self.unit, with_msg=True)
+        sd = self.ip.standard_deviation(self.len_long, self.unit)
 
         # atr = self.ip.atr(self.len_long, self.unit)
 
@@ -66,7 +67,7 @@ class TMFStrategyRunner(AbsStrategyRunner):
             f'| newest price: {latest_price}\n'
             f'| {self.len_long.total_seconds()}_s_ma: {ma_long} \n'
             f'| {self.len_short.total_seconds()}_s_ma: {ma_short}\n'
-            # f'| atr: {atr}\n'
+            f'| standard deviation: {sd}\n'
             f'{va_msg}\n'
             f'{sva_msg}\n'
         )
@@ -77,8 +78,11 @@ class TMFStrategyRunner(AbsStrategyRunner):
         plotter.add_points(f'price', (self.ip.now, latest_price))
         plotter.add_points(f'pma_{self.len_long.total_seconds()}s', (self.ip.now, ma_long))
         plotter.add_points(f'pma_{self.len_short.total_seconds()}s', (self.ip.now, ma_short))
-        # plotter.add_points(f'vma_{self.len_long.total_seconds()}s', (self.ip.now, vol_avg))
-        # plotter.add_points(f'vma_{vma_len_short.total_seconds()}s', (self.ip.now, vol_avg_short))
+        plotter.add_points(f'bollinger_upper_{self.len_long.total_seconds()}s', (self.ip.now, ma_long + sd))
+        plotter.add_points(f'bollinger_lower_{self.len_long.total_seconds()}s', (self.ip.now, ma_long - sd))
+
+        plotter.add_points(f'vma_{self.len_long.total_seconds()}s', (self.ip.now, vol_avg), in_second_chart=True)
+        plotter.add_points(f'vma_{vma_len_short.total_seconds()}s', (self.ip.now, vol_avg_short), in_second_chart=True)
 
     def wait_for_finish(self):
         self.finish.wait()
@@ -138,8 +142,6 @@ class TMFStrategyRunner(AbsStrategyRunner):
 
                         direction = 'long' if suggest.action == Action.Buy else 'short'
                         plotter.add_points(f'{direction}_open', (self.ip.now, self.ip.latest_price()), point_only=True)
-
-            self.ip.clear_lru_cache()
 
             # time.sleep(2)
         print('tmf strategy runner loop stopped.')

@@ -63,7 +63,7 @@ class DummyShioaji:
             # Simulate an order state callback
             order_state = OrderState.FuturesDeal
             oid = self._get_id()
-            lt = self.latest_tick()
+            lt = self._latest_tick
             # msg = {
             #     'operation': {'op_type': 'New', 'op_code': '00', 'op_msg': ''},
             #     'order': {
@@ -81,27 +81,28 @@ class DummyShioaji:
                    'quantity': order.quantity, 'security_type': 'FUT', 'custom_field': '',
                    'ts': lt.datetime.timestamp()}
 
-            self.handle_order(order, 'TMFTEST')
+            self._handle_order(order, 'TMFTEST')
 
             self.order_callback(order_state, msg)
 
-    def latest_tick(self):
+    @property
+    def _latest_tick(self):
         return self.dummy_rtm.latest_tick()
 
-    def create_future_profit_loss(self, position, quantity, pnl, price):
+    def _create_future_profit_loss(self, position, quantity, action):
         return FutureProfitLoss(
             id=position.id,
             code=position.code,
             quantity=quantity,
-            pnl=pnl,
-            date=self.latest_tick().datetime.isoformat(),
-            entry_price=price,
-            cover_price=price,
+            pnl=self._pnl(position.price, self._latest_tick.close, quantity, short=(action == Action.Buy)),
+            date=self._latest_tick.datetime.isoformat(),
+            entry_price=position.price,
+            cover_price=self._latest_tick.close,
             tax=2,
             fee=15,
         )
 
-    def create_future_position(self, code, direction, quantity, price):
+    def _create_future_position(self, code, direction, quantity, price):
         return FuturePosition(
             id=self._get_id(increase=False),
             code=code,
@@ -112,81 +113,50 @@ class DummyShioaji:
             pnl=0.0
         )
 
-    def pnl(self, ent, cur, count, dpp=10, short=False):
-        return count * (cur - ent) * dpp * -1 if short else 1
+    @staticmethod
+    def _pnl(ent, cur, count, dpp=10, short=False):
+        return count * (cur - ent) * dpp * (-1 if short else 1)
 
-    def handle_order(self, order: Order, code):
+    def _handle_profit_loss(self, position, quantity, action):
+        self.profit_loss.append(
+            self._create_future_profit_loss(position, quantity, action)
+        )
+
+    def _handle_order(self, order: Order, code):
         remaining_quantity = order.quantity
-        latest_price = self.latest_tick().close
+        latest_price = self._latest_tick.close
 
         if order.action == Action.Buy:
-            # 沖銷 short positions
-            while self.short_positions and remaining_quantity > 0:
-                position = self.short_positions[0]
-                if position.quantity <= remaining_quantity:
-                    remaining_quantity -= position.quantity
-                    pnl = self.pnl(position.price, latest_price, position.quantity, short=True)
-                    self.profit_loss.append(
-                        self.create_future_profit_loss(
-                            position,
-                            position.quantity,
-                            pnl,
-                            position.price
-                        )
-                    )
-                    self.short_positions.pop(0)
-                else:
-                    position.quantity -= remaining_quantity
-                    pnl = self.pnl(position.price, latest_price, position.quantity, short=True)
-                    self.profit_loss.append(
-                        self.create_future_profit_loss(
-                            position,
-                            remaining_quantity,
-                            pnl,
-                            position.price
-                        )
-                    )
-                    remaining_quantity = 0
-
-            # 如果還有剩餘數量，新增 long position
+            remaining_quantity = self._offset_positions(
+                remaining_quantity, self.short_positions, order.action
+            )
             if remaining_quantity > 0:
-                self.long_positions.append(
-                    self.create_future_position(code, Action.Buy, remaining_quantity, latest_price))
+                self._add_position(self.long_positions, code, Action.Buy, remaining_quantity, latest_price)
 
         elif order.action == Action.Sell:
-            # 沖銷 long positions
-            while self.long_positions and remaining_quantity > 0:
-                position = self.long_positions[0]
-                if position.quantity <= remaining_quantity:
-                    remaining_quantity -= position.quantity
-                    pnl = self.pnl(position.price, latest_price, position.quantity)
-                    self.profit_loss.append(
-                        self.create_future_profit_loss(
-                            position,
-                            position.quantity,
-                            pnl,
-                            position.price
-                        )
-                    )
-                    self.long_positions.pop(0)
-                else:
-                    position.quantity -= remaining_quantity
-                    pnl = self.pnl(position.price, latest_price, position.quantity)
-                    self.profit_loss.append(
-                        self.create_future_profit_loss(
-                            position,
-                            remaining_quantity,
-                            pnl,
-                            position.price
-                        )
-                    )
-                    remaining_quantity = 0
-
-            # 如果還有剩餘數量，新增 short position
+            remaining_quantity = self._offset_positions(
+                remaining_quantity, self.long_positions, order.action
+            )
             if remaining_quantity > 0:
-                self.short_positions.append(
-                    self.create_future_position(code, Action.Sell, remaining_quantity, latest_price)
-                )
+                self._add_position(self.short_positions, code, Action.Sell, remaining_quantity, latest_price)
+
+    def _offset_positions(self, remaining_quantity, positions, action):
+        """沖銷現有部位，返回剩餘數量"""
+        while positions and remaining_quantity > 0:
+            position = positions[0]
+            if position.quantity <= remaining_quantity:  # 部位被全部沖銷
+                remaining_quantity -= position.quantity
+                self._handle_profit_loss(position, position.quantity, action)
+                positions.pop(0)
+            else:  # 部位部分沖銷
+                position.quantity -= remaining_quantity
+                self._handle_profit_loss(position, remaining_quantity, action)
+                remaining_quantity = 0
+        return remaining_quantity
+
+    def _add_position(self, positions, code, action, quantity, price):
+        """新增部位"""
+        positions.append(self._create_future_position(code, action, quantity, price))
 
     def ticks(self):
         pass

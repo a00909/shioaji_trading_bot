@@ -5,6 +5,7 @@ class IndicatorType(Enum):
     PMA = 'pma'
     ATR = 'atr'
     VMA = 'vma'
+    SD = 'sd'  # standard deviation
 
     @classmethod
     def from_string(cls, name: str):

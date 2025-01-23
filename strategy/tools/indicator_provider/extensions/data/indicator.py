@@ -6,6 +6,8 @@ from tools.utils import decode_redis
 
 
 class Indicator:
+    L1_SEPERATOR = ':'
+
     def __init__(self):
         self.indicator_type: [IndicatorType] = None
         self.length: timedelta = None
@@ -15,21 +17,28 @@ class Indicator:
         self.datetime: datetime = None
 
     @classmethod
-    def deserialize(cls, data: bytes, separator=':'):
-        values = decode_redis(data).split(separator)
-        indicator = cls()
-        indicator.indicator_type = IndicatorType.from_string(values[0].split('.')[1])
-        indicator.data_count = int(values[1])
-        indicator.value = float(values[2])
-        indicator.datetime = datetime.fromtimestamp(float(values[3]), tz=DEFAULT_TIMEZONE)
-        return indicator
+    def deserialize(cls, data: str | bytes, from_subclass=False, subclass_instance=None):
+        if not from_subclass:
+            data = decode_redis(data)
+            instance = cls()
+        else:
+            instance = subclass_instance
 
-    def serialize(self, serial, seperator=':'):
+        values = data.split(cls.L1_SEPERATOR)
+        instance.indicator_type = IndicatorType.from_string(values[1].split('.')[1])
+        instance.data_count = int(values[2])
+        instance.value = float(values[3])
+        instance.datetime = datetime.fromtimestamp(float(values[4]), tz=DEFAULT_TIMEZONE)
+
+        return instance if not from_subclass else None
+
+    def serialize(self, serial):
         data = (
-            f'{self.indicator_type}{seperator}'
-            f'{self.data_count}{seperator}'
-            f'{self.value}{seperator}'
-            f'{self.datetime.timestamp()}{seperator}'
-            f'{serial}'
+            f'{serial}{self.L1_SEPERATOR}'
+            f'{self.indicator_type}{self.L1_SEPERATOR}'
+            f'{self.data_count}{self.L1_SEPERATOR}'
+            f'{self.value}{self.L1_SEPERATOR}'
+            f'{self.datetime.timestamp()}'
+
         )
         return data

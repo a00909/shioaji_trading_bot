@@ -47,7 +47,7 @@ class AbsIndicatorManager(ABC):
         self.buffer.append(new)
 
     @abstractmethod
-    def calculate(self, now: datetime, last: Indicator):
+    def calculate(self, now: datetime, last: Indicator) -> Indicator:
         pass
 
     @cache
@@ -64,14 +64,31 @@ class AbsIndicatorManager(ABC):
         return f'{self.storage_key_prefix}:{self.get_key_postfix()}'
 
     def dump_to_redis(self, anyway=False):
-        if anyway or len(self.buffer) > self.MAX_BUFFER_SIZE :
-            self.redis.zadd(
-                self.get_storage_key(),
-                {idc.serialize(get_serial(self.redis,self.get_serial_key())): idc.datetime.timestamp() for idc in self.buffer}
-            )
+        if anyway:
+            data = {
+                idc.serialize(get_serial(self.redis, self.get_serial_key())): idc.datetime.timestamp()
+                for idc in self.buffer
+            }
+        elif len(self.buffer) > self.MAX_BUFFER_SIZE:
+            data = {
+                idc.serialize(get_serial(self.redis, self.get_serial_key())): idc.datetime.timestamp()
+                for idc in self.buffer[:self.MAX_BUFFER_SIZE / 2]
+            }
+            self.buffer = self.buffer[self.MAX_BUFFER_SIZE / 2:]
+        else:
+            return
+
+        self.redis.zadd(
+            self.get_storage_key(),
+            data
+        )
 
     def clear_buffer(self):
         self.buffer.clear()
 
-    def __call__(self, *args, **kwargs):
-        return self.buffer[-1].value if self.buffer else None
+    def get(self, backward_idx=-1, value_only=True):
+
+        indicator = self.buffer[backward_idx] if abs(backward_idx) <= len(self.buffer) else None
+        if value_only:
+            return indicator.value
+        return indicator

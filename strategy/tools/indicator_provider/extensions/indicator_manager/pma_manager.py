@@ -87,3 +87,5 @@ class PMAManager(AbsIndicatorManager):
 
         self.end_values = end_values
         self.end_count = end_count
+
+

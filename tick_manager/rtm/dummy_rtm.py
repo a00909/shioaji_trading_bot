@@ -69,7 +69,7 @@ class DummyRealtimeTickManager(RealtimeTickManagerBase):
 
     # functions
     def wait_for_tick(self):
-        if self.window_right < 10000:  # len(self.data) - 1:
+        if self.window_right <  len(self.buffer) - 1:
             self._print_msg()
 
             self.window_right += 1

@@ -14,42 +14,59 @@ logger = logging.getLogger('Ma Strategy')
 
 class MaStrategy(AbsStrategy):
 
-    def __init__(self, ip: IndicatorProvider, len_long: timedelta, len_short: timedelta):
+    def __init__(self, ip: IndicatorProvider, len_long: timedelta, len_short: timedelta, unit):
         super().__init__(ip)
         self.len_long = len_long
         self.len_short = len_short
+        self.unit = unit
         self.er: EntryReport | None = None
 
-    def in_signal(self) -> StrategySuggestion | None:
+    @staticmethod
+    def _msg_template(is_in: bool, is_long: bool, ma, sd, price, slope):
+        return (
+            f'[{"In" if is_in else "Out"} signal {"long" if is_long else "short"}] '
+            f'ma:{ma} | sd:{sd} | price: {price} | slope: {slope}'
+        )
+
+    def _indicators(self):
         ma = self.ip.ma(self.len_long)
         price = self.ip.latest_price()
-        slope = self.ip.slope(self.len_long, self.len_short)
+        slope = self.ip.slope(self.len_short, self.len_long)
+        sd = self.ip.standard_deviation(self.len_long, self.unit)
+        return ma, price, slope, sd
 
-        res = None
-        if price < ma and slope > 0:
-            res = StrategySuggestion()
-            res.action = Action.Buy
-            res.quantity = 1
-            res.valid = True
-            msg = (
-                f'[In signal long] ma:{ma} | price: {price} | slope: {slope}'
-            )
-            logger.info(msg)
-            ui_signal_emitter.emit_strategy(msg)
+    def _get_report(self, params, ma, sd, price, slope):
+        if not params:
+            return None
 
-        elif price > ma and slope < 0:
-            res = StrategySuggestion()
-            res.action = Action.Sell
-            res.quantity = 1
-            res.valid = True
-            msg = (
-                f'[In signal short] ma:{ma} | price: {price} | slope: {slope}'
-            )
-            logger.info(msg)
-            ui_signal_emitter.emit_strategy(msg)
+        res = StrategySuggestion()
+        res.action = params[0]
+        res.quantity = 1
+        res.valid = True
+
+        msg = self._msg_template(True, res.action == Action.Buy, ma, sd, price, slope)
+        logger.info(msg)
+        ui_signal_emitter.emit_strategy(msg)
+        return res
+
+    def in_signal(self) -> StrategySuggestion | None:
+        ma, price, slope, sd = self._indicators()
+
+        params = None
+
+        if price < ma - sd and slope > 0:
+            params = [
+                Action.Buy,
+            ]
+        elif price > ma + sd and slope < 0:
+            params = [
+                Action.Sell,
+            ]
         else:
-            # res.valid = False
             pass
+
+        res = self._get_report(params, ma, sd, price, slope)
+
         return res
 
     def report_entry(self, er: EntryReport):
@@ -68,35 +85,23 @@ class MaStrategy(AbsStrategy):
         if not self.er:
             logger.info('no entry report yet.')
             return None
-        ma = self.ip.ma(self.len_long)
-        price = self.ip.latest_price()
-        slope = self.ip.slope(self.len_long, self.len_short)
 
-        res = None
+        ma, price, slope, sd = self._indicators()
+
+        params = None
+
         if self.er.action == Action.Buy:
-            if price > ma and slope < 0:
-                res = StrategySuggestion()
-                res.action = Action.Sell
-                res.quantity = self.er.quantity
-                res.valid = True
-                msg = (
-                    f'[Out signal long] ma:{ma} | price: {price} | slope: {slope}'
-                )
-                logger.info(msg)
-                ui_signal_emitter.emit_strategy(msg)
-
-
+            if price > ma + sd and slope < 0:
+                params = [
+                    Action.Sell
+                ]
         elif self.er.action == Action.Sell:
-            if price < ma and slope > 0:
-                res = StrategySuggestion()
-                res.action = Action.Buy
-                res.quantity = self.er.quantity
-                res.valid = True
-                msg = (
-                    f'[Out signal short] ma:{ma} | price: {price} | slope: {slope}'
-                )
-                logger.info(msg)
-                ui_signal_emitter.emit_strategy(msg)
+            if price < ma - sd and slope > 0:
+                params = [
+                    Action.Buy
+                ]
+
+        res = self._get_report(params, ma, sd, price, slope)
 
         return res
 

@@ -29,6 +29,8 @@ class IndayHistoryGetter:
         self.buffer: list[TickFOPv1D1] = []
         self.window_size = window_size
 
+
+
     def check_inday_history(self):
         key = self.redis_key()
         res = self.redis.zrange(key, -1, -1, withscores=False)

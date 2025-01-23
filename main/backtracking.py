@@ -1,3 +1,4 @@
+import threading
 from datetime import datetime
 
 from strategy.runner.tmf_strategy_runner import TMFStrategyRunner
@@ -8,6 +9,7 @@ from tools.app import App
 from tick_manager.rtm.dummy_rtm import DummyRealtimeTickManager
 from tools.dummy_shioaji import DummyShioaji
 from tools.plotter import plotter
+import pandas as pd
 
 plotter.active()
 start = datetime.now()
@@ -15,7 +17,7 @@ app = App(init=True)
 contract = app.api.Contracts.Futures.TMF.TMFR1
 account = app.api.futopt_account
 htm = HistoryTickManager(app.api, app.redis, app.session_maker)
-dummy_rtm = DummyRealtimeTickManager(contract, htm, app.redis, '2024-12-31')
+dummy_rtm = DummyRealtimeTickManager(contract, htm, app.redis, '2025-01-21')
 dummy_api = DummyShioaji(htm, dummy_rtm, account)
 op = OrderPlacer(dummy_api, contract, dummy_api.foutopt_account)
 ip = IndicatorProvider(dummy_rtm)
@@ -25,7 +27,13 @@ strategy_runner.wait_for_finish()
 
 profit_loss = dummy_api.list_profit_loss(None)
 
-print(profit_loss)
+df = pd.DataFrame([item.dict() for item in profit_loss])
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 180)
+print(df[['id','pnl','entry_price','cover_price', 'quantity','code','date']])
+print("\nTotal PnL:", df["pnl"].sum())
 print(f'total consume: {datetime.now() - start}')
+
 plotter.plot()
+
 app.shut()
