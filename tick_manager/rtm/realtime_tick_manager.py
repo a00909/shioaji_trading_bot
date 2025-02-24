@@ -70,6 +70,8 @@ class RealtimeTickManager(RealtimeTickManagerBase):
         self.new_data_index = -1
         self.skip_combine = False
 
+        self.last_total_volume = None
+
     def start(self, wait_for_ready=True):
         if self.started:
             print('rtm already started.')
@@ -145,16 +147,11 @@ class RealtimeTickManager(RealtimeTickManagerBase):
     def start_time(self) -> datetime:
         return self.ihg.start_time
 
+
     def _on_tick_fop_v1_handler(self, _exchange: sj.Exchange, tick: TickFOPv1):
         tick.datetime = tick.datetime.replace(tzinfo=DEFAULT_TIMEZONE)
 
         tickv1d1 = TickFOPv1D1.tickfopv1_to_v1d1(tick)
-
-        if self.need_lock:
-            with self.buffer_lock:
-                self.buffer.append(tickv1d1)
-        else:
-            self.buffer.append(tickv1d1)
 
         # print delay
         now = datetime.now(tz=DEFAULT_TIMEZONE)
@@ -162,6 +159,23 @@ class RealtimeTickManager(RealtimeTickManagerBase):
             delay = (now - tick.datetime).total_seconds()
             print(f'[Realtime tick delay] {delay} s.\n')
             self.last_print_delay = now
+
+        # check tick miss
+        if self.last_total_volume and tickv1d1.volume + self.last_total_volume != tickv1d1.total_volume:
+            print(
+                f'[Tick miss check] '
+                f't_vol_total_last={self.last_total_volume}, '
+                f't_vol_total={tickv1d1.total_volume}, '
+                f't_vol={tickv1d1.volume}'
+            )
+        self.last_total_volume = tickv1d1.total_volume
+
+        # append to buffer
+        if self.need_lock:
+            with self.buffer_lock:
+                self.buffer.append(tickv1d1)
+        else:
+            self.buffer.append(tickv1d1)
 
         self.tick_received_event.set()
 

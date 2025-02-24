@@ -27,6 +27,7 @@ class App:
         self.engine = None
         self.simu = simu
         self.contract = None
+        self.api_started = False
 
         if init:
             self.init(init_api=init_api)
@@ -35,6 +36,7 @@ class App:
         if init_api:
             self.login_api()
             self.contract = self.api.Contracts.Futures.TMF.TMFR1
+            self.api_started = True
 
         load_dotenv()
         self.redis = RedisManager().redis
@@ -53,7 +55,9 @@ class App:
         return self.contract
 
     def shut(self):
-        self.api.logout()
+        if self.api_started:
+            self.api.logout()
+            self.api_started = False
 
     def login_api(self):
         if not self.api:

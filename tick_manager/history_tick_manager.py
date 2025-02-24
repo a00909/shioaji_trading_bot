@@ -39,10 +39,13 @@ class HistoryTickManager:
         for i in ticks:
             data.append(i.to_string())
 
-        pipe.rpush(key, *data)
-        pipe.sadd(self._memo_key(key), key)
+        if data:
+            pipe.rpush(key, *data)
+            pipe.expire(key, 86400)
+        else:
+            print('no data.(might be weekends?)')
 
-        pipe.expire(key, 86400)
+        pipe.sadd(self._memo_key(key), key)
         pipe.expire(self._memo_key(key), 86400)
 
         try:

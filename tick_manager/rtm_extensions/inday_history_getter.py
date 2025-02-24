@@ -29,8 +29,6 @@ class IndayHistoryGetter:
         self.buffer: list[TickFOPv1D1] = []
         self.window_size = window_size
 
-
-
     def check_inday_history(self):
         key = self.redis_key()
         res = self.redis.zrange(key, -1, -1, withscores=False)
@@ -63,7 +61,6 @@ class IndayHistoryGetter:
 
         if self.received_total or self.received_count >= self.received_total:
             self.set_finish()
-            print('rtm ready.')
 
     def wait_for_finish(self):
         self.finish.wait()
@@ -79,7 +76,7 @@ class IndayHistoryGetter:
         query_end = self.start_time
 
         # todo: check這裡的邏輯, 是否可能會造成換日漏掉資料
-        print('in day query: ',query_start.date(), query_end.date())
+        print('in day query: ', query_start.date(), query_end.date())
         if query_start.date() == query_end.date():
 
             data = [(query_start.time().isoformat(), query_end.time().isoformat())]
@@ -91,6 +88,7 @@ class IndayHistoryGetter:
 
         for d in data:
             print(f'query range: {d}')
+
             self.api.ticks(
                 self.contract,
                 query_date.strftime(DATE_FORMAT_SHIOAJI),

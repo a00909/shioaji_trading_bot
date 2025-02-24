@@ -7,7 +7,7 @@ from shioaji.constant import OrderState, Action
 from shioaji.position import FuturePosition
 
 from strategy.strategies.data import StrategySuggestion
-from tools.dummy_shioaji import DummyShioaji
+from tools.backtracking.dummy_shioaji import DummyShioaji
 from tools.ui_signal_emitter import ui_signal_emitter
 
 logger = logging.getLogger('Order Placer')

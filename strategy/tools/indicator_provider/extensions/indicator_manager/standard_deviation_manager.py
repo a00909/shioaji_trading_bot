@@ -12,14 +12,12 @@ class StandardDeviationManager(AbsIndicatorManager):
     buffer actually saves square sums and sample counts
     """
 
-    def __init__(self, length, unit, rtm, symbol, start_time, redis: Redis):
+    def __init__(self, length, rtm, symbol, start_time, redis: Redis):
         super().__init__(IndicatorType.SD, length, symbol, start_time, redis, rtm)
-        self.unit = unit
 
         self.end_square_sum = None
         self.end_count = None
         self.end_sum = None
-
 
     @override
     def get(self, backward_idx=-1, value_only=True):
@@ -28,13 +26,12 @@ class StandardDeviationManager(AbsIndicatorManager):
         if not indicator:
             return None
 
-        variance = (
-                (indicator.square_sum / indicator.data_count)
-                - (indicator.sum / indicator.data_count) ** 2
-        )
-        value = variance ** 0.5
-
         if value_only:
+            variance = (
+                    (indicator.square_sum / indicator.data_count)
+                    - (indicator.sum / indicator.data_count) ** 2
+            )
+            value = variance ** 0.5
             return value
         else:
             return indicator

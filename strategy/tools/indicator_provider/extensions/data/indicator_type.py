@@ -6,6 +6,7 @@ class IndicatorType(Enum):
     ATR = 'atr'
     VMA = 'vma'
     SD = 'sd'  # standard deviation
+    COVARIANCE = 'covariance'
 
     @classmethod
     def from_string(cls, name: str):

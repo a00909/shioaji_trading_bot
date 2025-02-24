@@ -5,7 +5,7 @@ from shioaji.constant import OrderState, Action
 from shioaji.position import FuturePosition, FutureProfitLoss
 
 from tick_manager.history_tick_manager import HistoryTickManager
-from tick_manager.rtm.dummy_rtm import DummyRealtimeTickManager
+from tools.backtracking.dummy_rtm import DummyRealtimeTickManager
 
 
 class DummyShioaji:
@@ -36,6 +36,9 @@ class DummyShioaji:
         self.Order = Order
 
     def list_positions(self, account: str) -> List[dict]:
+        if not self.long_positions and not self.short_positions:
+            return []
+
         cur_price = self.dummy_rtm.latest_tick().close
 
         for p in self.long_positions:
@@ -98,8 +101,8 @@ class DummyShioaji:
             date=self._latest_tick.datetime.isoformat(),
             entry_price=position.price,
             cover_price=self._latest_tick.close,
-            tax=2,
-            fee=15,
+            tax=4,
+            fee=30,
         )
 
     def _create_future_position(self, code, direction, quantity, price):

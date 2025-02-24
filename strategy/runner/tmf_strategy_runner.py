@@ -13,6 +13,7 @@ from strategy.runner.abs_strategy_runner import AbsStrategyRunner
 from strategy.strategies.abs_strategy import AbsStrategy
 from strategy.strategies.data import EntryReport
 from strategy.strategies.ma_stragegy import MaStrategy
+from strategy.strategies.volume_strategy import VolumeStrategy
 from tools.constants import DEFAULT_TIMEZONE
 from tools.plotter import plotter
 from tools.ui_signal_emitter import ui_signal_emitter
@@ -26,20 +27,31 @@ class TMFStrategyRunner(AbsStrategyRunner):
         self.trades = None
         self.strategies: list[AbsStrategy] = []
         self.start_time = None
-        self.unit = datetime.timedelta(seconds=5)
+        self.unit = datetime.timedelta(minutes=1)
         self.len_long = datetime.timedelta(minutes=60)
         self.len_short = datetime.timedelta(minutes=5)
         self.finish = threading.Event()
 
+        self.len_covariance = datetime.timedelta(minutes=25)
+        self.len_vma_short = datetime.timedelta(minutes=5)
+
+        self.vma_long_times = 2
         # self.default_max_position = 3
         # self.stop_lost = 0
         # self.take_profit = 999999
 
     def init_strategies(self):
+        params = (
+            self.ip, self.len_long, self.len_short, self.unit, self.len_covariance, self.len_vma_short,
+            self.vma_long_times
+        )
 
-        ma_stra = MaStrategy(self.ip, self.len_long, self.len_short, self.unit)
+        ma_stra = MaStrategy(*params)
+        vol_stra = VolumeStrategy(*params)
 
         # add more strategies
+        # hint: sequence matters
+        self.strategies.append(vol_stra)
         self.strategies.append(ma_stra)
 
     def prepare(self):
@@ -55,10 +67,10 @@ class TMFStrategyRunner(AbsStrategyRunner):
         ma_short = self.ip.ma(self.len_short)
         # slope = self.ip.slope(self.chk_timedelta, self.chk_timedelta_short)
 
-        vol_avg, va_msg = self.ip.vol_avg(self.len_long, self.unit, with_msg=True)
-        vma_len_short = datetime.timedelta(seconds=30)
-        vol_avg_short, sva_msg = self.ip.vol_avg(vma_len_short, self.unit, with_msg=True)
-        sd = self.ip.standard_deviation(self.len_long, self.unit)
+        vma_long, vma_long_msg = self.ip.vma(self.len_long, self.unit, with_msg=True)
+        vma_short, vma_short_msg = self.ip.vma(self.len_vma_short, self.unit, with_msg=True)
+        sd = self.ip.standard_deviation(self.len_long)
+        covariance = self.ip.covariance(self.len_covariance)
 
         # atr = self.ip.atr(self.len_long, self.unit)
 
@@ -68,8 +80,9 @@ class TMFStrategyRunner(AbsStrategyRunner):
             f'| {self.len_long.total_seconds()}_s_ma: {ma_long} \n'
             f'| {self.len_short.total_seconds()}_s_ma: {ma_short}\n'
             f'| standard deviation: {sd}\n'
-            f'{va_msg}\n'
-            f'{sva_msg}\n'
+            f'| covariance: {covariance}\n'
+            f'{vma_long_msg}\n'
+            f'{vma_short_msg}\n'
         )
 
         ui_signal_emitter.emit_indicator(msg)
@@ -81,11 +94,27 @@ class TMFStrategyRunner(AbsStrategyRunner):
         plotter.add_points(f'bollinger_upper_{self.len_long.total_seconds()}s', (self.ip.now, ma_long + sd))
         plotter.add_points(f'bollinger_lower_{self.len_long.total_seconds()}s', (self.ip.now, ma_long - sd))
 
-        plotter.add_points(f'vma_{self.len_long.total_seconds()}s', (self.ip.now, vol_avg), in_second_chart=True)
-        plotter.add_points(f'vma_{vma_len_short.total_seconds()}s', (self.ip.now, vol_avg_short), in_second_chart=True)
+
+        plotter.add_points(
+            f'vma_{self.len_long.total_seconds()}s_*{self.vma_long_times}',
+            (self.ip.now, vma_long * self.vma_long_times),
+            chart_idx=1
+        )
+        plotter.add_points(
+            f'vma_{self.len_vma_short.total_seconds()}s',
+            (self.ip.now, vma_short),
+            chart_idx=1
+        )
+
+        plotter.add_points(
+            f'covariance_{self.len_covariance.total_seconds()}s',
+            (self.ip.now, covariance),
+            chart_idx=2
+        )
 
     def wait_for_finish(self):
         self.finish.wait()
+        self.order_placer.close_all()
 
     @profile
     def strategy_loop(self):
@@ -142,6 +171,7 @@ class TMFStrategyRunner(AbsStrategyRunner):
 
                         direction = 'long' if suggest.action == Action.Buy else 'short'
                         plotter.add_points(f'{direction}_open', (self.ip.now, self.ip.latest_price()), point_only=True)
+                        break
 
             # time.sleep(2)
         print('tmf strategy runner loop stopped.')

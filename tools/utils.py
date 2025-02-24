@@ -169,8 +169,12 @@ def get_twse_date(dt: datetime):
     :param dt:
     :return:
     """
-    if 15 <= dt.hour <= 23:
+    if 15 <= dt.hour <= 23:  # 夜盤過夜前
+        if dt.weekday() == 4:  # 週五
+            return dt.date() + timedelta(days=3)
         return dt.date() + timedelta(days=1)
+    elif dt.weekday() == 5:  # 週六,只有夜盤,都+2
+        return dt.date() + timedelta(days=2)
     return dt.date()
 
 
@@ -184,3 +188,10 @@ def get_serial(redis: Redis, key):
 
 def deviation(val1, val2):
     return abs(val1 - val2) / val1
+
+
+def error(val1, val2, tolerance=0.0001):
+    if val1 == 0:
+        return False
+    if deviation(val1, val2) > tolerance:
+        raise Exception(f'deviation exceeded tolerance: {val1}, {val2}')
