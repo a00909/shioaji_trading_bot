@@ -58,7 +58,7 @@ class LongBacktracker:
     def _show_summery(self):
         df_summery = pd.DataFrame(self.summery)
         print(df_summery)
-        print(f'period pnl: {df_summery["net pnl"]}')
+        print(f'period pnl: {df_summery["net pnl"].sum()}')
 
     def start(self, start, end):
         start_dt = datetime.strptime(start, '%Y-%m-%d')

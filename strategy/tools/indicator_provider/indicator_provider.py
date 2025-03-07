@@ -114,7 +114,7 @@ class IndicatorProvider:
             return im.get()
         return im
 
-    def vma(self, length: timedelta, unit: timedelta, with_msg=False) \
+    def vma(self, length: timedelta, unit: timedelta, times=1) \
             -> tuple[float, str] | float:
         key = (IndicatorType.VMA, length, unit)
         params = (
@@ -127,9 +127,7 @@ class IndicatorProvider:
         )
         im = self._get_or_new_indicator(key, VMAManager, params)
 
-        if with_msg:
-            return im.get(), im.msg
-        return im.get()
+        return im.get() * times
 
     def standard_deviation(self, length: timedelta):
 

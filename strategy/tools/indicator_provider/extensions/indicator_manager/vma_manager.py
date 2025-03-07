@@ -10,7 +10,7 @@ from strategy.tools.indicator_provider.extensions.data.indicator_type import Ind
 
 
 class VMAManager(AbsIndicatorManager):
-    def __init__(self, length, unit, symbol: str, start_time, redis: Redis, rtm, with_msg=True):
+    def __init__(self, length, unit, symbol: str, start_time, redis: Redis, rtm, with_msg=False):
         super().__init__(IndicatorType.VMA, length, symbol, start_time, redis, rtm)
         self.unit: timedelta = unit
         self.with_msg = with_msg

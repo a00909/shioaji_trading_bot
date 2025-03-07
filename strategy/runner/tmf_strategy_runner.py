@@ -14,6 +14,7 @@ from strategy.strategies.abs_strategy import AbsStrategy
 from strategy.strategies.data import EntryReport
 from strategy.strategies.ma_stragegy import MaStrategy
 from strategy.strategies.volume_strategy import VolumeStrategy
+from strategy.tools.indicator_provider.indicator_facade import IndicatorFacade
 from tools.constants import DEFAULT_TIMEZONE
 from tools.plotter import plotter
 from tools.ui_signal_emitter import ui_signal_emitter
@@ -27,31 +28,23 @@ class TMFStrategyRunner(AbsStrategyRunner):
         self.trades = None
         self.strategies: list[AbsStrategy] = []
         self.start_time = None
-        self.unit = datetime.timedelta(minutes=1)
-        self.len_long = datetime.timedelta(minutes=60)
-        self.len_short = datetime.timedelta(minutes=5)
+
         self.finish = threading.Event()
+        self.indicator_facade = IndicatorFacade(ip)
 
-        self.len_covariance = datetime.timedelta(minutes=25)
-        self.len_vma_short = datetime.timedelta(minutes=5)
-
-        self.vma_long_times = 2
         # self.default_max_position = 3
         # self.stop_lost = 0
         # self.take_profit = 999999
 
     def init_strategies(self):
-        params = (
-            self.ip, self.len_long, self.len_short, self.unit, self.len_covariance, self.len_vma_short,
-            self.vma_long_times
-        )
 
-        ma_stra = MaStrategy(*params)
-        vol_stra = VolumeStrategy(*params)
+
+        ma_stra = MaStrategy(self.indicator_facade)
+        vol_stra = VolumeStrategy(self.indicator_facade)
 
         # add more strategies
         # hint: sequence matters
-        self.strategies.append(vol_stra)
+        # self.strategies.append(vol_stra)
         self.strategies.append(ma_stra)
 
     def prepare(self):
@@ -61,56 +54,39 @@ class TMFStrategyRunner(AbsStrategyRunner):
 
     def print_indicators(self):
         # indicator part
-        latest_price = self.ip.latest_price()
+        facade_lists = [
+            [
+                self.indicator_facade.latest_price,
+                self.indicator_facade.pma_long,
+                self.indicator_facade.pma_short,
+                self.indicator_facade.bb_upper,
+                self.indicator_facade.bb_lower,
+            ],
+            [
+                self.indicator_facade.vma_long,
+                self.indicator_facade.vma_short,
+            ],
+            [
+                self.indicator_facade.covariance_long,
+                self.indicator_facade.covariance_short,
+            ]
+        ]
 
-        ma_long = self.ip.ma(self.len_long)
-        ma_short = self.ip.ma(self.len_short)
-        # slope = self.ip.slope(self.chk_timedelta, self.chk_timedelta_short)
+        msg = f'[Indicators]\n'
+        for e,sublist in enumerate(facade_lists):
+            for facade_unit in sublist:
+                msg += f'{facade_unit.msg}\n'
 
-        vma_long, vma_long_msg = self.ip.vma(self.len_long, self.unit, with_msg=True)
-        vma_short, vma_short_msg = self.ip.vma(self.len_vma_short, self.unit, with_msg=True)
-        sd = self.ip.standard_deviation(self.len_long)
-        covariance = self.ip.covariance(self.len_covariance)
-
-        # atr = self.ip.atr(self.len_long, self.unit)
-
-        msg = (
-            f'[Indicators]\n'
-            f'| newest price: {latest_price}\n'
-            f'| {self.len_long.total_seconds()}_s_ma: {ma_long} \n'
-            f'| {self.len_short.total_seconds()}_s_ma: {ma_short}\n'
-            f'| standard deviation: {sd}\n'
-            f'| covariance: {covariance}\n'
-            f'{vma_long_msg}\n'
-            f'{vma_short_msg}\n'
-        )
+                plotter.add_points(
+                    facade_unit.name,
+                    (self.ip.now,facade_unit()),
+                    chart_idx=e
+                )
 
         ui_signal_emitter.emit_indicator(msg)
         # print(msg)
-        # todo: remove after test
-        plotter.add_points(f'price', (self.ip.now, latest_price))
-        plotter.add_points(f'pma_{self.len_long.total_seconds()}s', (self.ip.now, ma_long))
-        plotter.add_points(f'pma_{self.len_short.total_seconds()}s', (self.ip.now, ma_short))
-        plotter.add_points(f'bollinger_upper_{self.len_long.total_seconds()}s', (self.ip.now, ma_long + sd))
-        plotter.add_points(f'bollinger_lower_{self.len_long.total_seconds()}s', (self.ip.now, ma_long - sd))
 
 
-        plotter.add_points(
-            f'vma_{self.len_long.total_seconds()}s_*{self.vma_long_times}',
-            (self.ip.now, vma_long * self.vma_long_times),
-            chart_idx=1
-        )
-        plotter.add_points(
-            f'vma_{self.len_vma_short.total_seconds()}s',
-            (self.ip.now, vma_short),
-            chart_idx=1
-        )
-
-        plotter.add_points(
-            f'covariance_{self.len_covariance.total_seconds()}s',
-            (self.ip.now, covariance),
-            chart_idx=2
-        )
 
     def wait_for_finish(self):
         self.finish.wait()

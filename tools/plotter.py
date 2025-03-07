@@ -14,6 +14,7 @@ class Plotter:
         self.key_to_chart_idx = {}
         self.color_cycle = itertools.cycle(plt.cm.tab10.colors)  # 使用固定的顏色循環
         self.is_active = False
+        self.chart_amount = 1
 
     def active(self):
         self.is_active = True
@@ -39,6 +40,7 @@ class Plotter:
             self.point_only[key] = point_only
         if chart_idx and key not in self.key_to_chart_idx:
             self.key_to_chart_idx[key] = chart_idx
+            self.chart_amount = max(self.chart_amount, chart_idx + 1)
 
         self.data[key].append(point)  # 添加點到對應的 key
 
@@ -47,8 +49,7 @@ class Plotter:
         if not self.data:
             raise ValueError("No data to plot. Add points first.")
 
-
-        fig, axes = plt.subplots(len(self.key_to_chart_idx.keys()), 1, sharex=True, figsize=(10, 6))
+        fig, axes = plt.subplots(self.chart_amount, 1, sharex=True, figsize=(10, 6))
 
         for key, points in self.data.items():
             chart_idx = self.key_to_chart_idx.get(key)
@@ -84,8 +85,6 @@ class Plotter:
             ax.tick_params(axis='y', labelcolor='blue')
 
         plt.show()
-
-
 
 
 plotter = Plotter()

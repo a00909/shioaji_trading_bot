@@ -1,5 +1,7 @@
-from tools.app import App
+def fn(a):
+    print(a)
 
-app = App(init=True)
-contract = app.api.Contracts.Futures.TMF.TMFR1
-print(contract)
+l = lambda a:fn(a)
+
+l(a=50)
+
