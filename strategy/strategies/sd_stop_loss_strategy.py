@@ -12,20 +12,21 @@ from tools.ui_signal_emitter import ui_signal_emitter
 logger = logging.getLogger('Ma Strategy')
 
 
-class MaStrategy(AbsStrategy):
+class SdStopLossStrategy(AbsStrategy):
 
     def __init__(self, indicator_facade: IndicatorFacade):
         super().__init__(
             indicator_facade,
             [
-                (time(9, 0), time(13, 30)),
-                (time(15, 15), time(4, 0))
+                (time(8, 50), time(11, 30)),
+                # (time(20, 20), time(3, 00)),
+                # (time(15, 15), time(4, 0))
             ]
         )
 
     @property
     def name(self):
-        return "ma_strategy"
+        return "sd_stop_loss_strategy"
 
     def _report_entry_detail(self, er: EntryReport):
         pass
@@ -33,17 +34,17 @@ class MaStrategy(AbsStrategy):
     def in_signal(self) -> StrategySuggestion | None:
         params = None
         if (
-                self._is_active_time and
-                # not self._is_high_volume and
-                self._sd > 6
-                # abs(self._covariance_long) < 10000
-                # self._vma_long < 200
+                self._is_active_time
+                and self._sd >= 6
+                and abs(self._price - self._sd_stop_loss) < 55
+                # and self._vma_short > self._vma_long
+
         ):
-            if self._price <= self._ma_long - self._sd * 1.4 :
+            if  self._ma_short > self._sd_stop_loss   :
                 params = [
                     Action.Buy,
                 ]
-            elif self._price >= self._ma_long + self._sd * 1.4:
+            elif self._ma_short < self._sd_stop_loss:
                 params = [
                     Action.Sell,
                 ]
@@ -64,25 +65,11 @@ class MaStrategy(AbsStrategy):
         direction = 1 if self.er.action == Action.Buy else -1
         action_map = {1: [Action.Sell], -1: [Action.Buy]}
 
-        if (self.er.deal_price - self._price) * direction >= self._sd*1.5 :
+        if direction == 1 and self._ma_short < self._sd_stop_loss:
             params = action_map[direction]
 
-        # # 固定止盈
-        if (self._price - self.er.deal_price) * direction >= self._sd * 1:
+        elif direction == -1 and self._ma_short > self._sd_stop_loss:
             params = action_map[direction]
-
-        # if self._is_high_volume and self._covariance_long * direction < -20000 and self._covariance_short * direction<0:
-        #     params = action_map[direction]
-
-        # if self.stop_loss:
-        #     if (self._price - self.stop_loss) * direction >= self._sd:
-        #         self.stop_loss = self._price - direction * 0.5 * self._sd
-        #     elif (self._price - self.stop_loss) * direction < 0:
-        #         params = action_map[direction]
-        #
-        #
-        # elif (self._price - self.er.deal_price) * direction >= self._sd * 2:
-        #     self.stop_loss = self._price - self._sd * direction
 
         res = self._get_report(params, is_in=False)
 

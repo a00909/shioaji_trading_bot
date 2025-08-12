@@ -43,8 +43,9 @@ class AbsIndicatorManager(ABC):
             last = None
         new = self.calculate(now, last)
 
-        self.dump_to_redis()
-        self.buffer.append(new)
+        if new:
+            self.dump_to_redis()
+            self.buffer.append(new)
 
     @abstractmethod
     def calculate(self, now: datetime, last: Indicator) -> Indicator:
@@ -89,6 +90,8 @@ class AbsIndicatorManager(ABC):
     def get(self, backward_idx=-1, value_only=True):
 
         indicator = self.buffer[backward_idx] if abs(backward_idx) <= len(self.buffer) else None
-        if value_only:
-            return indicator.value
-        return indicator
+
+        if indicator:
+            if value_only:
+                return indicator.value
+            return indicator

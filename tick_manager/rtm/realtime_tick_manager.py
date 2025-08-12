@@ -1,25 +1,17 @@
 import threading
-from bisect import bisect_left, bisect_right
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import datetime, timedelta
 
 import shioaji as sj
 from redis.client import Redis
-import numpy as np
-import pandas as pd
-from selenium.webdriver.common.devtools.v85.debugger import resume
 from shioaji import TickFOPv1
-from shioaji.backend.solace.api import TicksQueryType
-from shioaji.data import Ticks
-from ta.momentum import RSIIndicator
+from typing_extensions import override
 
+from data.bid_ask_fop_v1d1 import BidAskFOPv1D1
 from data.tick_fop_v1d1 import TickFOPv1D1
 from tick_manager.rtm.rtm_base import RealtimeTickManagerBase
-from tick_manager.rtm_extensions.backtracking_time_getter import BacktrackingTimeGetter
 from tick_manager.rtm_extensions.inday_history_getter import IndayHistoryGetter
-from tools.utils import decode_redis, history_ts_to_datetime, get_now, default_tickfopv1, ticks_to_tickfopv1, \
-    get_twse_date, get_redis_date_tag, get_serial
-from tools.constants import DATE_FORMAT_SHIOAJI, DEFAULT_TIMEZONE, DATE_FORMAT_REDIS
+from tools.constants import DEFAULT_TIMEZONE
+from tools.utils import decode_redis, get_redis_date_tag, get_serial
 
 
 class RealtimeTickManager(RealtimeTickManagerBase):
@@ -58,11 +50,11 @@ class RealtimeTickManager(RealtimeTickManagerBase):
                 'quote_type': sj.constant.QuoteType.Tick,
                 'version': sj.constant.QuoteVersion.v1,
             },
-            # {
-            #     'contract': app.api.Contracts.Futures.TMF.TMFR1,
-            #     'quote_type': sj.constant.QuoteType.BidAsk,
-            #     'version': sj.constant.QuoteVersion.v1,
-            # },
+            {
+                'contract': self.contract,
+                'quote_type': sj.constant.QuoteType.BidAsk,
+                'version': sj.constant.QuoteVersion.v1,
+            },
 
         ]
         self.need_lock = True
@@ -129,10 +121,10 @@ class RealtimeTickManager(RealtimeTickManagerBase):
         buffer_start = 0
 
         with self.buffer_lock:
-            buffer_size = len(self.buffer)
-            while buffer_start < buffer_size and self.buffer[buffer_start].datetime <= in_day_end:
+            buffer_size = len(self.tick_buffer)
+            while buffer_start < buffer_size and self.tick_buffer[buffer_start].datetime <= in_day_end:
                 buffer_start += 1
-            self.buffer = older_data[:older_right + 1] + in_day_history + self.buffer[buffer_start:]
+            self.tick_buffer = older_data[:older_right + 1] + in_day_history + self.tick_buffer[buffer_start:]
             self.need_lock = False
 
         if rm_count > 0:
@@ -146,7 +138,6 @@ class RealtimeTickManager(RealtimeTickManagerBase):
     @property
     def start_time(self) -> datetime:
         return self.ihg.start_time
-
 
     def _on_tick_fop_v1_handler(self, _exchange: sj.Exchange, tick: TickFOPv1):
         tick.datetime = tick.datetime.replace(tzinfo=DEFAULT_TIMEZONE)
@@ -173,9 +164,9 @@ class RealtimeTickManager(RealtimeTickManagerBase):
         # append to buffer
         if self.need_lock:
             with self.buffer_lock:
-                self.buffer.append(tickv1d1)
+                self.tick_buffer.append(tickv1d1)
         else:
-            self.buffer.append(tickv1d1)
+            self.tick_buffer.append(tickv1d1)
 
         self.tick_received_event.set()
 
@@ -192,7 +183,8 @@ class RealtimeTickManager(RealtimeTickManagerBase):
                 print('rtm ready.')
 
     def _on_bidask_fop_v1_handler(self, _exchange: sj.Exchange, bidask: sj.BidAskFOPv1):
-        print(f'[bidask_handler] {bidask}')
+        bidaskvidi = BidAskFOPv1D1.bidaskv1_to_v1d1(bidask)
+        self.bid_ask_buffer.append(bidaskvidi)
 
     # redis
     def _redis_key(self):
@@ -215,15 +207,19 @@ class RealtimeTickManager(RealtimeTickManagerBase):
         # return get_redis_date_tag(self.start_time if self.start_time else get_now())
         return get_redis_date_tag(self.start_time)
 
-    # functions
+    @override
+    def update_window_right(self):
+        self.tick_right = len(self.tick_buffer) - 1
+        self.bid_ask_right = len(self.bid_ask_buffer) - 1
+
+    @override
     def wait_for_tick(self):
         self.tick_received_event.wait(timeout=10)
         if not self.started:
             return False
         self.tick_received_event.clear()
 
-        self.window_right = len(self.buffer) - 1
-        self._update_window_left()
+        self.update_window()
 
         return True
 
@@ -231,6 +227,6 @@ class RealtimeTickManager(RealtimeTickManagerBase):
         key = self._redis_key()
         data = {
             t.serialize(self._get_tick_serial()): t.datetime.timestamp()
-            for t in self.buffer[self.new_data_index:]
+            for t in self.tick_buffer[self.new_data_index:]
         }
         self.redis.zadd(key, data)

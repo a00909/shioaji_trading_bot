@@ -7,7 +7,7 @@ __all__ = ['HistoryTick', 'HistoryTickMemo']
 
 from tools.constants import DEFAULT_TIMEZONE
 
-from tools.utils import default_tickfopv1
+from tools.utils import default_tickfopv1, default_bidaskv1d1
 
 
 class HistoryTick(Base):
@@ -75,15 +75,22 @@ class HistoryTick(Base):
             id=int(parts[9])
         )
 
-    def to_tickfopv1d1(self):
+    def to_tick_bidask_v1d1(self):
         tick = default_tickfopv1()
+        bidask = default_bidaskv1d1()
+
         tick.datetime = self.ts
         tick.close = self.close
         tick.volume = self.volume
-        tick.bid_side_total_vol = self.bid_volume
-        tick.ask_side_total_vol = self.ask_volume
         tick.tick_type = self.tick_type
-        return tick
+
+        bidask.datetime = self.ts
+        bidask.bid_price = self.bid_price
+        bidask.bid_volume = self.bid_volume
+        bidask.ask_price = self.ask_price
+        bidask.ask_volume = self.ask_volume
+
+        return tick, bidask
 
 
 class HistoryTickMemo(Base):

@@ -1,9 +1,10 @@
 import itertools
 from datetime import datetime
 
-import matplotlib.pyplot as plt
-from collections import defaultdict
 
+import matplotlib.pyplot as plt
+
+from collections import defaultdict
 
 class Plotter:
     def __init__(self):

@@ -1,8 +1,5 @@
 import datetime
-import line_profiler_pycharm
 import threading
-import time
-from enum import Enum
 
 from line_profiler_pycharm import profile
 from shioaji.constant import OrderState, Action
@@ -13,6 +10,8 @@ from strategy.runner.abs_strategy_runner import AbsStrategyRunner
 from strategy.strategies.abs_strategy import AbsStrategy
 from strategy.strategies.data import EntryReport
 from strategy.strategies.ma_stragegy import MaStrategy
+from strategy.strategies.sd_stop_loss_strategy import SdStopLossStrategy
+from strategy.strategies.trend_strategy import TrendStrategy
 from strategy.strategies.volume_strategy import VolumeStrategy
 from strategy.tools.indicator_provider.indicator_facade import IndicatorFacade
 from tools.constants import DEFAULT_TIMEZONE
@@ -38,14 +37,17 @@ class TMFStrategyRunner(AbsStrategyRunner):
 
     def init_strategies(self):
 
-
         ma_stra = MaStrategy(self.indicator_facade)
         vol_stra = VolumeStrategy(self.indicator_facade)
+        trend_stra = TrendStrategy(self.indicator_facade)
+        sd_stop_loss_stra = SdStopLossStrategy(self.indicator_facade)
 
         # add more strategies
         # hint: sequence matters
         # self.strategies.append(vol_stra)
-        self.strategies.append(ma_stra)
+        # self.strategies.append(ma_stra)
+        # self.strategies.append(trend_stra)
+        self.strategies.append(sd_stop_loss_stra)
 
     def prepare(self):
         self.init_strategies()
@@ -59,8 +61,9 @@ class TMFStrategyRunner(AbsStrategyRunner):
                 self.indicator_facade.latest_price,
                 self.indicator_facade.pma_long,
                 self.indicator_facade.pma_short,
-                self.indicator_facade.bb_upper,
-                self.indicator_facade.bb_lower,
+                # self.indicator_facade.bb_upper,
+                # self.indicator_facade.bb_lower,
+                self.indicator_facade.sd_stop_loss,
             ],
             [
                 self.indicator_facade.vma_long,
@@ -69,24 +72,29 @@ class TMFStrategyRunner(AbsStrategyRunner):
             [
                 self.indicator_facade.covariance_long,
                 self.indicator_facade.covariance_short,
-            ]
+            ],
+            # [
+            #     self.indicator_facade.sell_buy_diff,
+            #     self.indicator_facade.bid_ask_diff_ma
+            # ],
+            [
+                self.indicator_facade.sd
+            ],
         ]
 
         msg = f'[Indicators]\n'
-        for e,sublist in enumerate(facade_lists):
+        for e, sublist in enumerate(facade_lists):
             for facade_unit in sublist:
                 msg += f'{facade_unit.msg}\n'
 
                 plotter.add_points(
                     facade_unit.name,
-                    (self.ip.now,facade_unit()),
+                    (self.ip.now, facade_unit()),
                     chart_idx=e
                 )
 
         ui_signal_emitter.emit_indicator(msg)
         # print(msg)
-
-
 
     def wait_for_finish(self):
         self.finish.wait()
@@ -105,25 +113,27 @@ class TMFStrategyRunner(AbsStrategyRunner):
                 break
 
             self.print_indicators()
+            entry_suggest = None
+            out_suggest = None
 
             if cur_stra_idx >= 0:
-                suggest = self.strategies[cur_stra_idx].out_signal()
-                if suggest and suggest.valid:
+                out_suggest = self.strategies[cur_stra_idx].out_signal()
+                if out_suggest and out_suggest.valid:
                     # self.print_indicators() # todo: remove after test
-                    self.order_placer.place_order_by_suggestion(suggest)
+                    self.order_placer.place_order_by_suggestion(out_suggest)
                     self.order_placer.wait_for_completely_deal()
                     self.update_positions()
                     cur_stra_idx = -1
 
-                    direction = 'long' if suggest.action == Action.Sell else 'short'
+                    direction = 'long' if out_suggest.action == Action.Sell else 'short'
                     plotter.add_points(f'{direction}_close', (self.ip.now, self.ip.latest_price()), point_only=True)
             else:
                 for e, stra in enumerate(self.strategies):
-                    suggest = stra.in_signal()
-                    if suggest and suggest.valid:
+                    entry_suggest = stra.in_signal()
+                    if entry_suggest and entry_suggest.valid:
                         # self.print_indicators() # todo: remove after test
                         cur_stra_idx = e
-                        self.order_placer.place_order_by_suggestion(suggest)
+                        self.order_placer.place_order_by_suggestion(entry_suggest)
                         self.order_placer.wait_for_completely_deal()
                         self.update_positions()
 
@@ -145,7 +155,7 @@ class TMFStrategyRunner(AbsStrategyRunner):
 
                         stra.report_entry(er)
 
-                        direction = 'long' if suggest.action == Action.Buy else 'short'
+                        direction = 'long' if entry_suggest.action == Action.Buy else 'short'
                         plotter.add_points(f'{direction}_open', (self.ip.now, self.ip.latest_price()), point_only=True)
                         break
 

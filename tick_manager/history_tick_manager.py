@@ -1,5 +1,6 @@
 import traceback
 from datetime import datetime, timedelta
+from typing_extensions import override
 
 from redis.client import Redis
 from shioaji import Shioaji
@@ -9,20 +10,16 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from database.schema.history_tick import HistoryTickMemo, HistoryTick
+from tick_manager.abs_history_data_manager import AbsHistoryDataManager
 from tools.utils import get_now, history_ts_to_datetime
 from tools.constants import DATE_FORMAT_SHIOAJI
 
 
-class HistoryTickManager:
+class HistoryTickManager(AbsHistoryDataManager[HistoryTick]):
     history_ticks_key_prefix = 'history.tick'
-    date_format_redis = '%Y.%m.%d'
-    date_format_db = '%Y-%m-%d'
 
     def __init__(self, api, redis, session_maker: sessionmaker[Session], log_on=True):
-        self.log_on = log_on
-        self.api: Shioaji = api
-        self.redis: Redis = redis
-        self.session_maker: sessionmaker[Session] = session_maker
+        super().__init__(api, redis, session_maker, log_on)
 
     def redis_key(self, symbol, date):
         return f'{self.history_ticks_key_prefix}:{symbol}:{date}'
@@ -31,112 +28,15 @@ class HistoryTickManager:
     def _memo_key(key):
         return f'{key}:memo'
 
-    def set_ticks_to_redis(self, ticks: list[HistoryTick], symbol, date):
-        pipe = self.redis.pipeline()
-        key = self.redis_key(symbol, date)
-        data = []
-
-        for i in ticks:
-            data.append(i.to_string())
-
-        if data:
-            pipe.rpush(key, *data)
-            pipe.expire(key, 86400)
-        else:
-            print('no data.(might be weekends?)')
-
-        pipe.sadd(self._memo_key(key), key)
-        pipe.expire(self._memo_key(key), 86400)
-
-        try:
-            pipe.execute(True)
-        except Exception as e:
-            print(f"發生錯誤: {traceback.format_exc()}")
-            return False
-
-        return True
-
-    def get_tick_from_redis(self, symbol, date):
-        key = self.redis_key(symbol, date)
-
-        if self.redis.sismember(self._memo_key(key), key):
-            results = self.redis.lrange(key, 0, -1)
-            return True, results
-        return False, []
-
-    def create_partition_table(self, session: Session, date_str: str):
-        date = datetime.strptime(date_str, self.date_format_db)
-
-        partition_name = f'history_tick_{date.strftime("%Y%m")}'
-
-        start_date = date.replace(day=1)  # 当前月份的第一天
-
-        year = date.year
-        month = date.month
-
-        if month < 12:
-            end_date = start_date.replace(month=month + 1)  # 下个月的第一天
-        else:
-            end_date = start_date.replace(year=year + 1, month=1)
-
-        sql = f"""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = '{partition_name}') THEN
-                    EXECUTE format('
-                        CREATE TABLE %I PARTITION OF history_tick FOR VALUES FROM (%L) TO (%L)',
-                        '{partition_name}', 
-                        '{start_date.strftime(self.date_format_db)}', 
-                        '{end_date.strftime(self.date_format_db)}'
-                    );
-                END IF;
-            END $$;
-            """
-        session.execute(text(sql))
-
-    def set_ticks_to_db(self, ticks, symbol, date):
-        ticks_len = len(ticks.ts)
-
-        new_ticks = []
-        for i in range(ticks_len):
-            new_ticks.append(HistoryTick(
-                ts=history_ts_to_datetime(ticks.ts[i]),
-                symbol=symbol,
-                close=ticks.close[i],
-                volume=ticks.volume[i],
-                bid_price=ticks.bid_price[i],
-                bid_volume=ticks.bid_volume[i],
-                ask_price=ticks.ask_price[i],
-                ask_volume=ticks.ask_volume[i],
-                tick_type=ticks.tick_type[i],
-            ))
-        memo = HistoryTickMemo(
-            date=datetime.strptime(date, self.date_format_db).date(),
-            symbol=symbol
-        )
-
-        with self.session_maker() as session:
-            try:
-                self.create_partition_table(session, date)
-                session.add_all(new_ticks)
-                session.add(memo)
-                session.commit()
-
-            except Exception as e:
-                # 捕獲並處理例外
-                print(f"發生錯誤: {traceback.format_exc()}")
-                session.rollback()
-                return False, []
-        return True, new_ticks
-
-    def get_tick_from_db(self, symbol, date):
+    @override
+    def _get_data_from_db(self, symbol, start, end=None):
         with self.session_maker() as session:
             memo = session.query(HistoryTickMemo).get(
-                {"date": datetime.strptime(date, self.date_format_db).date(), "symbol": symbol}
+                {"date": datetime.strptime(start, self.date_format_db).date(), "symbol": symbol}
             )
             if memo:
                 # 將字串轉換為datetime對象
-                date_obj = datetime.strptime(date, self.date_format_db)
+                date_obj = datetime.strptime(start, self.date_format_db)
 
                 previous_day = date_obj - timedelta(days=1)
 
@@ -150,28 +50,89 @@ class HistoryTickManager:
                 return True, results
             return False, []
 
-    def get_tick_from_api(self, contract, date) -> Ticks:
+    @override
+    def _set_data_to_db(self, data, symbol, start, end=None):
+        ticks_len = len(data.ts)
+
+        new_ticks = []
+        for i in range(ticks_len):
+            new_ticks.append(HistoryTick(
+                ts=history_ts_to_datetime(data.ts[i]),
+                symbol=symbol,
+                close=data.close[i],
+                volume=data.volume[i],
+                bid_price=data.bid_price[i],
+                bid_volume=data.bid_volume[i],
+                ask_price=data.ask_price[i],
+                ask_volume=data.ask_volume[i],
+                tick_type=data.tick_type[i],
+            ))
+        memo = HistoryTickMemo(
+            date=datetime.strptime(start, self.date_format_db).date(),
+            symbol=symbol
+        )
+
+        suc = self._commit_to_db(HistoryTick.__tablename__, start, new_ticks, memo)
+        return suc, new_ticks if suc else suc, []
+
+    @override
+    def _get_data_from_redis(self, symbol, start, end=None):
+        key = self.redis_key(symbol, start)
+
+        if self.redis.sismember(self._memo_key(key), key):
+            results = self.redis.lrange(key, 0, -1)
+            return True, [HistoryTick.from_string(ht) for ht in results]
+        return False, []
+
+    @override
+    def _set_data_to_redis(self, data: list[HistoryTick], symbol, start, end=None):
+        pipe = self.redis.pipeline()
+        key = self.redis_key(symbol, start)
+        redis_data = []
+
+        for i in data:
+            redis_data.append(i.to_string())
+
+        if redis_data:
+            pipe.rpush(key, *redis_data)
+            pipe.expire(key, 86400)
+        else:
+            print('no data.(might be weekends?)')
+
+        pipe.sadd(self._memo_key(key), key)
+        pipe.expire(self._memo_key(key), 86400)
+
+        try:
+            pipe.execute(True)
+        except Exception as e:
+            print(f"發生錯誤: {traceback.format_exc()}")
+            return False
+        return True
+
+    @override
+    def _get_data_from_api(self, contract, start, end=None) -> Ticks:
         ticks = self.api.ticks(
             contract,
-            date,
+            start,
             TicksQueryType.AllDay,
         )
         return ticks
 
-    def prepare_ticks(self, contract, date):
+    @override
+    def _prepare_data(self, contract, start, end=None):
         symbol = contract.symbol
 
         self.log('Fetching..')
-        ticks = self.get_tick_from_api(contract, date)
+        ticks = self._get_data_from_api(contract, start)
 
         self.log('Set ticks to db..')
-        suc, history_ticks = self.set_ticks_to_db(ticks, symbol, date)
+        suc, history_ticks = self._set_data_to_db(ticks, symbol, start)
 
         if not suc:
             return False, []
 
         self.log('Set ticks to redis..')
-        suc = self.set_ticks_to_redis(history_ticks, symbol, date)
+        suc = self._set_data_to_redis(history_ticks, symbol, start)
 
         if not suc:
             return False, []
@@ -181,39 +142,3 @@ class HistoryTickManager:
     def log(self, *args, **kwargs):
         if self.log_on:
             print(*args, **kwargs)
-
-    def get_tick(self, contract, date: str) -> list[HistoryTick]:
-        now = get_now()
-        date_dt = datetime.strptime(date, DATE_FORMAT_SHIOAJI)
-        if not (
-                now.date() > date_dt.date() or  # now大於要求日期
-                (
-                        # now == 要求日期且早盤已收
-                        now.date().strftime(DATE_FORMAT_SHIOAJI) == date
-                        and now.hour >= 13
-                        and now.minute >= 45
-                )
-        ):
-            raise Exception("History ticks is not complete yet.")
-
-        symbol = contract.symbol
-
-        self.log('Try load ticks from redis...')
-        suc, history_ticks = self.get_tick_from_redis(symbol, date)
-        if suc:
-            return [HistoryTick.from_string(ht) for ht in history_ticks]
-
-        self.log('Try load ticks from db...')
-        suc, history_ticks = self.get_tick_from_db(symbol, date)
-        if suc:
-            self.log('DB -> redis...')
-            self.set_ticks_to_redis(history_ticks, symbol, date)
-            return history_ticks
-
-        # fetch new data
-        self.log('Fetch ticks from api...')
-        suc, history_ticks = self.prepare_ticks(contract, date)
-        if not suc:
-            return []
-
-        return history_ticks

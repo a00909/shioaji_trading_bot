@@ -11,6 +11,7 @@ class PMAManager(AbsIndicatorManager):
         super().__init__(IndicatorType.PMA, length, symbol, start_time, redis, rtm)
         self.end_values = None
         self.end_count = None
+        self.diff = None
 
     def calculate(self, now, last):
         new = Indicator()
@@ -21,6 +22,8 @@ class PMAManager(AbsIndicatorManager):
         if last:
             # 增量更新
             data_count, value = self._calc_incr(last, now)
+            # 計算差值
+            self.diff = value - last.value
         else:
             data_count, value = self._calc_first(now)
 
@@ -32,7 +35,7 @@ class PMAManager(AbsIndicatorManager):
     def _calc_first(self, now) -> tuple[int, float]:
         ticks = self.rtm.get_ticks_by_time_range(now - self.length, now)
         if len(ticks) == 0:
-            raise Exception('no data to calculate!')
+            raise Exception(f'no data to calculate! query range: ({now-self.length},{now}), buffer size: {len(self.rtm.tick_buffer)}')
 
         data_count = sum(tick.volume for tick in ticks)
         value = sum(tick.close * tick.volume for tick in ticks) / data_count

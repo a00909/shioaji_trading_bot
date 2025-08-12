@@ -12,6 +12,7 @@ from redis.client import Redis
 from shioaji.contracts import FetchStatus
 from shioaji.data import Ticks
 
+from data.bid_ask_fop_v1d1 import BidAskFOPv1D1
 from quote import QuoteManager
 from tools.constants import DEFAULT_TIMEZONE, UTC_TZ, DATE_FORMAT_REDIS
 from tools.custom_logging_formatter import CustomFormatter
@@ -91,6 +92,27 @@ def default_tickfopv1():
     return tick
 
 
+def default_bidaskv1d1():
+    bidask = BidAskFOPv1D1()
+    bidask.code = ''
+    bidask.datetime = None
+    bidask.bid_total_vol = -1
+    bidask.ask_total_vol = -1
+    bidask.bid_price = []
+    bidask.bid_volume = []
+    bidask.diff_bid_vol = []
+    bidask.ask_price = []
+    bidask.ask_volume = []
+    bidask.diff_ask_vol = []
+    bidask.first_derived_bid_price = Decimal(-1)
+    bidask.first_derived_ask_price = Decimal(-1)
+    bidask.first_derived_bid_vol = -1
+    bidask.first_derived_ask_vol = -1
+    bidask.underlying_price = Decimal(-1)
+    bidask.simtrade = False
+    return bidask
+
+
 def tick_to_dict(tick: sj.TickFOPv1):
     return {
         'code': tick.code,
@@ -113,7 +135,6 @@ def tick_to_dict(tick: sj.TickFOPv1):
         'pct_chg': str(tick.pct_chg),
         'simtrade': tick.simtrade,
     }
-
 
 def to_df(ticks: list[sj.TickFOPv1]):
     data = [tick_to_dict(tick) for tick in ticks]

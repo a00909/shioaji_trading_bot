@@ -6,8 +6,12 @@ from line_profiler_pycharm import profile
 
 from strategy.tools.indicator_provider.extensions.indicator_manager.abs_indicator_manager import AbsIndicatorManager
 from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
+from strategy.tools.indicator_provider.extensions.indicator_manager.bid_ask_diff_manager import BidAskDiffManager
+from strategy.tools.indicator_provider.extensions.indicator_manager.bid_ask_ratio_ma_manager import BidAskRatioMaManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.covariance_manager import CovarianceManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.pma_manager import PMAManager
+from strategy.tools.indicator_provider.extensions.indicator_manager.sd_stopsloss_manager import SDStopLossManager
+from strategy.tools.indicator_provider.extensions.indicator_manager.sell_buy_diff_manager import SellBuyDiffManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.standard_deviation_manager import \
     StandardDeviationManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.vma_manager import VMAManager
@@ -89,17 +93,24 @@ class IndicatorProvider:
             except Exception as e:
                 print(f"发生异常：{e}")
 
-    def _get_or_new_indicator(self, key, cls, params):
+    def _get_or_new_indicator(self, key, cls=None, params=None, is_provider=False):
         if key in self.indicator_managers:
             return self.indicator_managers[key]
 
-        im = cls(*params)
-        im.update(self.now)
-        self.indicator_managers[key] = im
-        self.client_indicator_managers[key] = im
-        return im
+        elif params and cls:
+            im = cls(*params)
+            im.update(self.now)
+            self.indicator_managers[key] = im
 
-    def ma(self, length: timedelta, value_only=True):
+            if is_provider:
+                self.provider_indicator_managers[key] = im
+            else:
+                self.client_indicator_managers[key] = im
+            return im
+        else:
+            return None
+
+    def ma(self, length: timedelta, get_manager=False):
         key = (IndicatorType.PMA, length)
         params = (
             length,
@@ -110,9 +121,8 @@ class IndicatorProvider:
         )
 
         im = self._get_or_new_indicator(key, PMAManager, params)
-        if value_only:
-            return im.get()
-        return im
+
+        return im if get_manager else im.get()
 
     def vma(self, length: timedelta, unit: timedelta, times=1) \
             -> tuple[float, str] | float:
@@ -129,7 +139,7 @@ class IndicatorProvider:
 
         return im.get() * times
 
-    def standard_deviation(self, length: timedelta):
+    def standard_deviation(self, length: timedelta, get_manager=False):
 
         # ma_manager = self.ma(length, value_only=False)
         key = (IndicatorType.SD, length)
@@ -148,7 +158,7 @@ class IndicatorProvider:
         #     self.provider_indicator_managers[ma_key] = ma_manager
         #     del self.client_indicator_managers[ma_key]
 
-        return im.get()
+        return im if get_manager else im.get()
 
     def covariance(self, length):
         key = (IndicatorType.COVARIANCE, length)
@@ -162,12 +172,66 @@ class IndicatorProvider:
         im = self._get_or_new_indicator(key, CovarianceManager, params)
         return im.get()
 
-    def slope(self, short, long):
-        short_ma = self.ma(short)
-        long_ma = self.ma(long)
-        return short_ma - long_ma
+    def sell_buy_diff(self, length):
+        key = (IndicatorType.SELL_BUY_DIFF, length)
+        params = (
+            length,
+            self.rtm.symbol,
+            self.rtm.start_time,
+            self.redis,
+            self.rtm
+        )
+        im = self._get_or_new_indicator(key, SellBuyDiffManager, params)
+        return im.get()
 
-    def slope2(self, short, long):
-        short_ma = self.ma(short)
-        long_ma = self.ma(long)
-        return short_ma - long_ma
+    def bid_ask_diff(self):
+        ba = self.rtm.latest_bidask()
+
+        return ba.bid_volume - ba.ask_volume
+
+    def bid_ask_diff_ma(self, length):
+        key = (IndicatorType.BID_ASK_DIFF, length)
+        params = (
+            length,
+            self.rtm.symbol,
+            self.rtm.start_time,
+            self.redis,
+            self.rtm
+        )
+        im = self._get_or_new_indicator(key, BidAskDiffManager, params)
+        return im.get()
+
+    def bid_ask_ratio_ma(self, length):
+        key = (IndicatorType.BID_ASK_RATIO_MA, length)
+        params = (
+            length,
+            self.rtm.symbol,
+            self.rtm.start_time,
+            self.redis,
+            self.rtm
+        )
+        im = self._get_or_new_indicator(key, BidAskRatioMaManager, params)
+        return im.get()
+
+    def sd_stop_loss(self, sd_length, pma_length):
+        key = (IndicatorType.BID_ASK_RATIO_MA, sd_length, pma_length)
+
+        im = self._get_or_new_indicator(key)
+
+        if not im:
+            sd_manager = self.standard_deviation(sd_length, get_manager=True)
+            pma_manager = self.ma(pma_length, get_manager=True)
+
+            if sd_manager and pma_manager:
+                params = (
+                    sd_length,
+                    pma_length,
+                    self.rtm,
+                    self.rtm.symbol,
+                    self.rtm.start_time,
+                    self.redis, sd_manager,
+                    pma_manager
+                )
+                im = self._get_or_new_indicator(key, SDStopLossManager, params)
+
+        return im.get()

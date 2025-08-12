@@ -46,8 +46,12 @@ class AbsStrategy(ABC):
         pass
 
     @property
-    def _ma(self):
+    def _ma_long(self):
         return self.indicator_facade.pma_long()
+
+    @property
+    def _ma_short(self):
+        return self.indicator_facade.pma_short()
 
     @property
     def _price(self):
@@ -78,6 +82,18 @@ class AbsStrategy(ABC):
         return self._vma_short >= self._vma_long
 
     @property
+    def _sell_buy_ratio(self):
+        return self.indicator_facade.sell_buy_diff()
+
+    @property
+    def _bid_ask_ratio(self):
+        return self.indicator_facade.bid_ask_diff_ma()
+
+    @property
+    def _sd_stop_loss(self):
+        return self.indicator_facade.sd_stop_loss()
+
+    @property
     def _is_active_time(self):
         current_time = self.indicator_facade.now().time()
         for start, end in self.active_time_ranges:
@@ -103,7 +119,7 @@ class AbsStrategy(ABC):
         self.stop_loss = None
         self.take_profit = None
 
-        self.enter_ma = self._ma
+        self.enter_ma = self._ma_long
         self.enter_sd = self._sd
 
         self._report_entry_detail(er)
@@ -126,7 +142,7 @@ class AbsStrategy(ABC):
 
         is_buy = res.action == Action.Buy
         is_long = is_buy == is_in
-        msg = self._msg_template(is_in, is_long, self._ma, self._sd, self._price, self._covariance_long)
+        msg = self._msg_template(is_in, is_long, self._ma_long, self._sd, self._price, self._covariance_long)
         self.logger.info(msg)
         ui_signal_emitter.emit_strategy(msg)
         return res

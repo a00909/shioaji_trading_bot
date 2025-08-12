@@ -3,15 +3,16 @@ from decimal import Decimal
 
 from shioaji import TickFOPv1
 
+from data.datetime_comparable import DatetimeComparable
 from tools.constants import DEFAULT_TIMEZONE
 from tools.utils import decode_redis
 
 
-class TickFOPv1D1(TickFOPv1):
+class TickFOPv1D1(TickFOPv1, DatetimeComparable):
     close: float
 
     def __init__(self):
-        pass
+        DatetimeComparable.__init__(self, TickFOPv1D1)
 
     @classmethod
     def tickfopv1_to_v1d1(cls, tick: TickFOPv1):
@@ -87,27 +88,6 @@ class TickFOPv1D1(TickFOPv1):
             f"{serial_num}"
         )
         return serialized
-
-    def __lt__(self, other):
-        if isinstance(other, datetime):
-            return self.datetime < other
-        elif isinstance(other, TickFOPv1D1):
-            return self.datetime < other.datetime
-        return NotImplemented
-
-    def __eq__(self, other):
-        if isinstance(other, datetime):
-            return self.datetime == other
-        elif isinstance(other, TickFOPv1D1):
-            return self.datetime == other.datetime
-        return NotImplemented
-
-    def __gt__(self, other):
-        if isinstance(other, datetime):
-            return self.datetime > other
-        elif isinstance(other, TickFOPv1D1):
-            return self.datetime > other.datetime
-        return NotImplemented
 
     def __repr__(self):
         attributes = ', '.join(f"{key}={repr(value)}" for key, value in self.__dict__.items())

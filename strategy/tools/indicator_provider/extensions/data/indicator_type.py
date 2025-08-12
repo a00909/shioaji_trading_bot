@@ -7,6 +7,10 @@ class IndicatorType(Enum):
     VMA = 'vma'
     SD = 'sd'  # standard deviation
     COVARIANCE = 'covariance'
+    SELL_BUY_DIFF = 'sell_buy_diff'
+    BID_ASK_DIFF = 'bid_ask_diff'
+    BID_ASK_RATIO_MA = 'bid_ask_ratio_ma'
+    SD_STOP_LOSS = 'sd_stop_loss'
 
     @classmethod
     def from_string(cls, name: str):

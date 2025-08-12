@@ -16,11 +16,12 @@ class VolumeStrategy(AbsStrategy):
         super().__init__(
             indicator_facade,
             [
-                (time(8, 50), time(13, 40)),
-                (time(15, 5), time(4, 0))
+                (time(9, 20), time(13, 40)),
+                (time(15, 30), time(4, 0))
             ]
         )
         self.covariance_threshold = 5000
+        self.bid_ask_ratio_threshold = 0.03
 
     @property
     def name(self):
@@ -31,17 +32,15 @@ class VolumeStrategy(AbsStrategy):
 
     def in_signal(self) -> StrategySuggestion | None:
         params = None
-        if self._is_high_volume and self._is_active_time:
+        if self._vma_short > 250 and self._is_active_time:
             if (
-                    self._covariance_long >= self.covariance_threshold and
-                    self._covariance_short > 0 and
-                    self._price >= self._ma + self._sd
+                    self._sell_buy_ratio > 0.5 + self.bid_ask_ratio_threshold and
+                    self._bid_ask_ratio > 0.5 + self.bid_ask_ratio_threshold
             ):
                 params = [Action.Buy]
             elif (
-                    self._covariance_long <= -self.covariance_threshold and
-                    self._covariance_short < 0 and
-                    self._price <= self._ma - self._sd
+                    self._sell_buy_ratio < 0.5 - self.bid_ask_ratio_threshold and
+                    self._bid_ask_ratio < 0.5 - self.bid_ask_ratio_threshold
             ):
                 params = [Action.Sell]
 
@@ -62,21 +61,21 @@ class VolumeStrategy(AbsStrategy):
             params = action_map[direction]
 
         # 協方差止損
-        if self._covariance_long * direction <= 0:
-            params = action_map[direction]
-
-        # # 固定止盈
-        # if (self._price - self.er.deal_price) * direction >= max(self._sd, 100):
+        # if self._covariance_long * direction <= 0:
         #     params = action_map[direction]
 
+        # # 固定止盈
+        if (self._price - self.er.deal_price) * direction >= self._sd * 1.5:
+            params = action_map[direction]
+
         # 滾動止損
-        if self.stop_loss:
-            if (self._price - self.stop_loss) * direction >= 0.5 * self._sd:
-                self.stop_loss += direction * 0.25 * self._sd
-            else:
-                params = action_map[direction]
-        elif (self._price - self.er.deal_price) * direction >= self._sd:
-            self.stop_loss = self._price - 0.25 * self._sd * direction
+        # if self.stop_loss:
+        #     if (self._price - self.stop_loss) * direction >= 0.5 * self._sd:
+        #         self.stop_loss += direction * 0.25 * self._sd
+        #     else:
+        #         params = action_map[direction]
+        # elif (self._price - self.er.deal_price) * direction >= self._sd:
+        #     self.stop_loss = self._price - 0.25 * self._sd * direction
 
         res = self._get_report(params, is_in=False)
         return res
