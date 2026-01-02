@@ -38,3 +38,10 @@ class Covariance(Indicator):
         instance.st = values[1]
         instance.spt = values[2]
         return instance
+
+    @override
+    def _calc(self):
+        return (
+                self.spt / self.data_count
+                - (self.sp * self.st / self.data_count ** 2)
+        )

@@ -1,9 +1,9 @@
 from redis.client import Redis
 
-from data.tick_fop_v1d1 import TickFOPv1D1
+from data.unified.tick.tick_fop import TickFOP
 from strategy.tools.indicator_provider.extensions.indicator_manager.abs_indicator_manager import AbsIndicatorManager
 from strategy.tools.indicator_provider.extensions.data.indicator import Indicator
-from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
+from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type import IndicatorType
 
 
 class PMAManager(AbsIndicatorManager):
@@ -78,7 +78,7 @@ class PMAManager(AbsIndicatorManager):
 
         return data_count, value
 
-    def _collect_end_count(self, ticks: list[TickFOPv1D1]):
+    def _collect_end_count(self, ticks: list[TickFOP]):
         last_dt = ticks[-1].datetime
         p = len(ticks) - 1
         end_values = 0

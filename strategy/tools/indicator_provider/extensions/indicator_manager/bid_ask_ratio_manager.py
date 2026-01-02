@@ -1,40 +1,25 @@
 from itertools import takewhile
 
 from redis.client import Redis
-from typing_extensions import override
 
-from data.bid_ask_fop_v1d1 import BidAskFOPv1D1
-from strategy.tools.indicator_provider.extensions.data.bid_ask_diff import BidAsk
-from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
+from data.unified.bid_ask.bid_ask_fop import BidAskFOP
+from strategy.tools.indicator_provider.extensions.data.bid_ask_ratio import BidAskRatio
+from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type import IndicatorType
 from strategy.tools.indicator_provider.extensions.indicator_manager.abs_indicator_manager import AbsIndicatorManager
 
 
-class BidAskDiffManager(AbsIndicatorManager):
+class BidAskRatioManager(AbsIndicatorManager):
     def __init__(self, length, symbol: str, start_time, redis: Redis, rtm):
-        super().__init__(IndicatorType.BID_ASK_DIFF, length, symbol, start_time, redis, rtm)
+        super().__init__(IndicatorType.BID_ASK_RATIO, length, symbol, start_time, redis, rtm)
         self.end_count = None
         self.end_datetime = None
 
-    @override
-    def get(self, backward_idx=-1, value_only=True):
-        indicator: BidAsk = super().get(backward_idx, value_only=False)
-
-        if not indicator:
-            return None
-
-        if value_only:
-            u = (indicator.bid + indicator.ask)
-
-            return indicator.bid / u if u else 0
-        else:
-            return indicator
-
-    def calculate(self, now, last: BidAsk):
+    def calculate(self, now, last: BidAskRatio):
         if not self.rtm.bid_ask_buffer:
             print('no bid_asks!')
             return None
 
-        new = BidAsk()
+        new = BidAskRatio()
         new.datetime = self.rtm.latest_tick().datetime
         new.indicator_type = self.indicator_type
         new.length = self.length
@@ -58,17 +43,10 @@ class BidAskDiffManager(AbsIndicatorManager):
                 f'no data to calculate! query range: ({now - self.length},{now}), buffer size: {len(self.rtm.bid_ask_buffer)}')
             return
 
-        bid = 0
-        ask = 0
-
-        for ba in bidasks:
-            bid += ba.bid_volume
-            ask += ba.ask_volume
-
         self._collect_end_count(bidasks)
-        return bid, ask
+        return self._deal(bidasks)
 
-    def _calc_incr(self, last: BidAsk, now):
+    def _calc_incr(self, last: BidAskRatio, now):
         # 增量更新
 
         added_bidasks = self.rtm.get_bidask_by_time_range(last.datetime, now)
@@ -83,18 +61,14 @@ class BidAskDiffManager(AbsIndicatorManager):
 
         return bid, ask
 
-    def _deal_added_ticks(self, added_ticks: list[BidAskFOPv1D1]):
-
-        bid = 0
-        ask = 0
-
+    def _deal_added_ticks(self, added_ticks: list[BidAskFOP]):
+        left = 0
         for e, ba in enumerate(added_ticks):
-            if ba.datetime <= self.end_datetime and e < self.end_count:
-                continue
-            bid += ba.bid_volume
-            ask += ba.ask_volume
+            if not (ba.datetime <= self.end_datetime and e < self.end_count):
+                left = e
+                break
 
-        return bid, ask
+        return self._deal(added_ticks[left:])
 
     def _deal_removed_ticks(self, now, last):
         if now == last.datetime:
@@ -108,17 +82,20 @@ class BidAskDiffManager(AbsIndicatorManager):
                 with_end=False
             )
 
+        return self._deal(deprecated)
+
+    @staticmethod
+    def _deal(bidasks: list[BidAskFOP]):
         bid = 0
         ask = 0
 
-        if deprecated:
-            for ba in deprecated:
-                bid += ba.bid_volume
-                ask += ba.ask_volume
+        for ba in bidasks:
+            bid += ba.bid_volume
+            ask += ba.ask_volume
 
         return bid, ask
 
-    def _collect_end_count(self, bidasks: list[BidAskFOPv1D1]):
+    def _collect_end_count(self, bidasks: list[BidAskFOP]):
         if not bidasks:
             self.end_count = 0
             return

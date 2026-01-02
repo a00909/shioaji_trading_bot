@@ -1,7 +1,9 @@
-from datetime import datetime
+from datetime import datetime, time
 
 from strategy.runner.tmf_strategy_runner import TMFStrategyRunner
+from strategy.tools.indicator_provider.dummy_indicator_provider import DummyIndicatorProvider
 from strategy.tools.indicator_provider.indicator_provider import IndicatorProvider
+from strategy.tools.kbar_indicators.kbar_indicator_center import KbarIndicatorCenter
 from strategy.tools.order_placer import OrderPlacer
 from tick_manager.history_tick_manager import HistoryTickManager
 from tools.app import App
@@ -20,10 +22,24 @@ contract = app.api.Contracts.Futures.TMF.TMFR1
 account = app.api.futopt_account
 # account = DummyAccount()
 htm = HistoryTickManager(app.api, app.redis, app.session_maker)
-dummy_rtm = DummyRealtimeTickManager(contract, htm, app.redis, '2025-08-11')
+'''
+date list:
+'2025-06-30' : no trend
+'2025-10-07' : trend
+'''
+active_time_ranges = [
+    (time(8, 45), time(13, 45))
+]
+dummy_rtm = DummyRealtimeTickManager(contract, htm, app.redis, '2025-10-30',active_time_ranges)
 dummy_api = DummyShioaji(htm, dummy_rtm, account)
 op = OrderPlacer(dummy_api, contract, dummy_api.foutopt_account)
-ip = IndicatorProvider(dummy_rtm)
+
+ip = DummyIndicatorProvider(
+    dummy_rtm,
+    KbarIndicatorCenter(contract, app.api, app.redis, app.session_maker)
+)
+ip.set_active_time_ranges(active_time_ranges)
+
 strategy_runner = TMFStrategyRunner(htm, op, ip)
 strategy_runner.start()
 strategy_runner.wait_for_finish()
@@ -40,5 +56,6 @@ if profit_loss:
     fee_sum = df["fee"].sum()
     print("\nTotal PnL:", pnl_sum - tax_sum - fee_sum)
     print(f'total consume: {datetime.now() - start} (fee: {fee_sum}, tax: {tax_sum})')
+
 app.shut()
 plotter.plot()

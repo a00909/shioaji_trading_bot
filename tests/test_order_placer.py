@@ -21,7 +21,7 @@ def cb(stat: OrderState, msg: dict):
 app = App(init=True)
 print(app.api.futopt_account)
 
-order_placer = OrderPlacer(app.api, app.contract, app.api.futopt_account)
+order_placer = OrderPlacer(app.api, app.get_contract, app.api.futopt_account)
 
 trade = order_placer.simple_buy(8)
 order_placer.wait_for_completely_deal()

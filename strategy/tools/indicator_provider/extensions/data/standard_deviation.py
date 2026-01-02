@@ -35,3 +35,12 @@ class StandardDeviation(Indicator):
         instance.sum = values[0]
         instance.square_sum = values[1]
         return instance
+
+    @override
+    def _calc(self):
+        variance = (
+                (self.square_sum / self.data_count)
+                - (self.sum / self.data_count) ** 2
+        )
+        value = variance ** 0.5
+        return value

@@ -1,34 +1,22 @@
 from itertools import takewhile
 
 from redis.client import Redis
-from typing_extensions import override
 
-from data.tick_fop_v1d1 import TickFOPv1D1
-from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
-from strategy.tools.indicator_provider.extensions.data.sell_buy_diff import SellBuyDiff
+from data.unified.tick.tick_fop import TickFOP
+from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type import IndicatorType
+from strategy.tools.indicator_provider.extensions.data.sell_buy_ratio import SellBuyRatio
 from strategy.tools.indicator_provider.extensions.indicator_manager.abs_indicator_manager import AbsIndicatorManager
 
 
-class SellBuyDiffManager(AbsIndicatorManager):
+class SellBuyRatioManager(AbsIndicatorManager):
     def __init__(self, length, symbol: str, start_time, redis: Redis, rtm):
-        super().__init__(IndicatorType.SELL_BUY_DIFF, length, symbol, start_time, redis, rtm)
+        super().__init__(IndicatorType.SELL_BUY_RATIO, length, symbol, start_time, redis, rtm)
         self.end_count = None
         self.end_datetime = None
 
-    @override
-    def get(self, backward_idx=-1, value_only=True):
-        indicator: SellBuyDiff = super().get(backward_idx, value_only=False)
 
-        if not indicator:
-            return None
-
-        if value_only:
-            return indicator.sell / (indicator.sell + indicator.buy)
-        else:
-            return indicator
-
-    def calculate(self, now, last: SellBuyDiff):
-        new = SellBuyDiff()
+    def calculate(self, now, last: SellBuyRatio):
+        new = SellBuyRatio()
         new.datetime = self.rtm.latest_tick().datetime
         new.indicator_type = self.indicator_type
         new.length = self.length
@@ -62,7 +50,7 @@ class SellBuyDiffManager(AbsIndicatorManager):
         self._collect_end_count(ticks)
         return len(ticks), sell, buy
 
-    def _calc_incr(self, last: SellBuyDiff, now):
+    def _calc_incr(self, last: SellBuyRatio, now):
         # 增量更新
 
         added_ticks = self.rtm.get_ticks_by_time_range(last.datetime, now)
@@ -78,20 +66,22 @@ class SellBuyDiffManager(AbsIndicatorManager):
 
         return count, sell, buy
 
-    def _deal_added_ticks(self, added_ticks: list[TickFOPv1D1]):
+    def _deal_added_ticks(self, added_ticks: list[TickFOP]):
 
         sell = 0
         buy = 0
+        count = 0
 
         for e, t in enumerate(added_ticks):
             if t.datetime <= self.end_datetime and e < self.end_count:
                 continue
+            count+=1
             if t.tick_type == 1:
                 sell += t.volume
             elif t.tick_type == 2:
                 buy += t.volume
 
-        return len(added_ticks), sell, buy
+        return count, sell, buy
 
     def _deal_removed_ticks(self, now, last):
         if now == last.datetime:
@@ -117,7 +107,7 @@ class SellBuyDiffManager(AbsIndicatorManager):
 
         return len(deprecated_ticks), sell, buy
 
-    def _collect_end_count(self, ticks: list[TickFOPv1D1]):
+    def _collect_end_count(self, ticks: list[TickFOP]):
         if not ticks:
             self.end_count = 0
             return

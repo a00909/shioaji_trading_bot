@@ -1,23 +1,17 @@
 import threading
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import datetime, timedelta
 
 import shioaji as sj
 from redis.client import Redis
-import numpy as np
-import pandas as pd
 from selenium.webdriver.common.devtools.v85.debugger import resume
 from shioaji import TickFOPv1
-from shioaji.backend.solace.api import TicksQueryType
-from shioaji.data import Ticks
 from ta.momentum import RSIIndicator
 
-from data.tick_fop_v1d1 import TickFOPv1D1
+from data.unified.tick.tick_fop import TickFOP
 from tick_manager.rtm_extensions.backtracking_time_getter import BacktrackingTimeGetter
 from tick_manager.rtm_extensions.inday_history_getter import IndayHistoryGetter
-from tools.utils import decode_redis, history_ts_to_datetime, get_now, default_tickfopv1, ticks_to_tickfopv1, \
-    get_twse_date, get_redis_date_tag, get_serial
-from tools.constants import DATE_FORMAT_SHIOAJI, DEFAULT_TIMEZONE, DATE_FORMAT_REDIS
+from tools.constants import DEFAULT_TIMEZONE
+from tools.utils import decode_redis, get_now, get_redis_date_tag, get_serial
 
 
 class RealtimeTickManager:
@@ -100,7 +94,7 @@ class RealtimeTickManager:
 
         tick.datetime = tick.datetime.replace(tzinfo=DEFAULT_TIMEZONE)
 
-        tickv1d1 = TickFOPv1D1.tickfopv1_to_v1d1(tick)
+        tickv1d1 = TickFOP.from_sj(tick)
 
         self.redis.zadd(key, {tickv1d1.serialize(self.get_tick_serial()): tickv1d1.datetime.timestamp()})
 
@@ -152,13 +146,13 @@ class RealtimeTickManager:
         return True
 
     def get_ticks_by_time_range(self, start: datetime, end: datetime, with_start=True, with_end=True) -> list[
-        TickFOPv1D1]:
+        TickFOP]:
         return self.btg.get(start, end, with_start, with_end)
 
     def get_ticks_by_backward_idx(self, backward_idx=0) -> list[sj.TickFOPv1]:
         data = self.redis.zrange(self.redis_key(), -1 - backward_idx, -1)
 
-        return [TickFOPv1D1.deserialize(tick) for tick in data]
+        return [TickFOP.deserialize(tick) for tick in data]
 
     def latest_tick(self):
         return self.get_ticks_by_backward_idx()[0]
@@ -166,4 +160,4 @@ class RealtimeTickManager:
     def get_ticks_by_index(self, start=0, end=-1):
         data = self.redis.zrange(self.redis_key(), start=start, end=end)
 
-        return [TickFOPv1D1.deserialize(tick) for tick in data]
+        return [TickFOP.deserialize(tick) for tick in data]

@@ -9,11 +9,11 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from tools.utils import get_now
-from tools.constants import DATE_FORMAT_SHIOAJI
+from tools.constants import DATE_FORMAT_DB_AND_SJ
 
 app = App(True)
 contract = app.api.Contracts.Futures.TMF.TMFR1
-date = (get_now().date()+timedelta(days=-1)).strftime(DATE_FORMAT_SHIOAJI)
+date = (get_now().date()+timedelta(days=-1)).strftime(DATE_FORMAT_DB_AND_SJ)
 
 # htm = HistoryTickManager(app.api, app.redis, app.session_maker)
 # ticks = htm.get_tick(app.api.Contracts.Futures.TMF.TMFR1, '2024-11-21')

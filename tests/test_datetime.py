@@ -1,7 +1,5 @@
+from tools.utils import history_ts_to_datetime
 
-from datetime import timedelta,datetime
+ts = 1752019200000000000
 
-now = datetime.now()
-_now = now + timedelta(microseconds=1)
-
-print(now == _now)
+print(history_ts_to_datetime(ts))

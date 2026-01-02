@@ -4,7 +4,7 @@ from typing import Callable
 
 from line_profiler_pycharm import profile
 
-from data.tick_fop_v1d1 import TickFOPv1D1
+from data.unified.tick.tick_fop import TickFOP
 from tools.utils import get_now
 
 
@@ -14,7 +14,7 @@ class BacktrackingTimeGetter:
         self.last_end: datetime = None
         self.get_key: Callable[[], str] = get_key
         self.redis = redis
-        self.buffer: list[TickFOPv1D1] = []
+        self.buffer: list[TickFOP] = []
         self.max_buffer_size = 2197152
         self.expire_limit = datetime.timedelta(hours=5)
         self.remain_range = datetime.timedelta(hours=4)
@@ -37,7 +37,7 @@ class BacktrackingTimeGetter:
         self.buffer = self.buffer[new_start_idx:]
         self.last_start = new_start
 
-    def get(self, start: datetime, end: datetime, with_start=True, with_end=True) -> list[TickFOPv1D1]:
+    def get(self, start: datetime, end: datetime, with_start=True, with_end=True) -> list[TickFOP]:
         results = self.__get(start, end)
         if not results:
             return []
@@ -59,7 +59,7 @@ class BacktrackingTimeGetter:
         return results
 
     @profile
-    def __get(self, start, end) -> list[TickFOPv1D1]:
+    def __get(self, start, end) -> list[TickFOP]:
         # end = get_now()
         # start = end - length
         if self.remove_old:
@@ -114,7 +114,7 @@ class BacktrackingTimeGetter:
 
             for d in data:
                 new_data_raw = self.redis.zrangebyscore(key, d[0].timestamp(), d[1].timestamp(), withscores=False)
-                new_data: list[TickFOPv1D1] = [TickFOPv1D1.deserialize(nd) for nd in new_data_raw]
+                new_data: list[TickFOP] = [TickFOP.deserialize(nd) for nd in new_data_raw]
 
                 if d[0] <= d[1] == self.last_start:
                     joint_idx = bisect_right(self.buffer, d[1])
@@ -137,7 +137,7 @@ class BacktrackingTimeGetter:
 
         else:
             new_data_raw = self.redis.zrangebyscore(key, start.timestamp(), end.timestamp(), withscores=False)
-            new_data: list[TickFOPv1D1] = [TickFOPv1D1.deserialize(nd) for nd in new_data_raw]
+            new_data: list[TickFOP] = [TickFOP.deserialize(nd) for nd in new_data_raw]
             self.last_start = start
             self.last_end = end
             self.buffer = new_data

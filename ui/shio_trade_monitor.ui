@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Dialog</class>
+ <widget class="QDialog" name="Dialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>835</width>
+    <height>731</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QWidget {
+    background-color: #2f2f2f; /* 非常深的灰色背景 */
+    color: #00ff00; /* 亮綠色字體 */
+}
+
+QPushButton {
+    background-color: #1f1f1f; /* 更深灰色按鈕背景 */
+    color: #00ff00; /* 亮綠色字體 */
+    border: 1px solid #00ff00; /* 亮綠色邊框 */
+    border-radius: 4px; /* 圓角按鈕 */
+}
+
+QPushButton:hover {
+    background-color: #141414; /* 滑鼠懸停時按鈕背景 */
+}
+
+QLineEdit {
+    background-color: #3f3f3f; /* 輸入框背景 */
+    color: #00ff00; /* 輸入框文字顏色 */
+    border: 1px solid #00ff00; /* 輸入框邊框 */
+    border-radius: 4px;
+    padding: 2px;
+}
+
+QLabel {
+    color: #00ff00; /* 標籤文字顏色 */
+}
+
+QTextBrowser {
+    background-color: #3f3f3f; /* 文本框背景 */
+    color: #00ff00; /* 文本框字體顏色 */
+    border: 1px solid #00ff00; /* 文本框邊框 */
+    border-radius: 4px;
+}
+</string>
+  </property>
+  <widget class="QTextBrowser" name="textBrowserIndicaor">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>37</y>
+     <width>601</width>
+     <height>241</height>
+    </rect>
+   </property>
+   <property name="html">
+    <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'PMingLiU'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;[Indicators]&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;| newest price: 23359.0&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;| 3600.0_s_ma: 23361.877800407332 | short_ma: 23355.0&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;| atr: 2.7560975609756095&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;[Vol avg info (l=3600.0 s)]&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;start: 03:25:05 | end: 04:24:26&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;| avg: 0.6819444444444445 | per: 0:00:05 | delta:0:59:20.565000&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;| 381 ticks&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;[Vol avg info (l=30.0 s)]&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;start: 04:23:56 | end: 04:24:26&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;| avg: 0.8333333333333334 | per: 0:00:05 | delta:0:00:29.881000&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;| 5 ticks&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+   </property>
+  </widget>
+  <widget class="QTextBrowser" name="textBrowserDeals">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>316</y>
+     <width>601</width>
+     <height>171</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLabel" name="labelIndicaor">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>6</y>
+     <width>61</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Indicator</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="labelDeals">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>290</y>
+     <width>58</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Deals</string>
+   </property>
+  </widget>
+  <widget class="QTextBrowser" name="textBrowserSignals">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>526</y>
+     <width>601</width>
+     <height>171</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLabel" name="labelSignals">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>500</y>
+     <width>58</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Signals</string>
+   </property>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

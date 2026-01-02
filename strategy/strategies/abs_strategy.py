@@ -5,22 +5,21 @@ from datetime import time
 from shioaji.constant import Action
 
 from strategy.strategies.data import StrategySuggestion, EntryReport
+from strategy.strategies.extensions.indicator_property_mixin import IndicatorPropertyMixin
+from strategy.tools.indicator_provider.extensions.data.donchian import Donchian
 from strategy.tools.indicator_provider.indicator_facade import IndicatorFacade
 from tools.ui_signal_emitter import ui_signal_emitter
+from tools.utils import is_in_time_ranges
 
 
-class AbsStrategy(ABC):
+class AbsStrategy(IndicatorPropertyMixin,ABC):
 
-    def __init__(
-            self,
-            indicator_facade: IndicatorFacade,
-            active_time_ranges: list[tuple[time, time]]
-
-    ):
+    def __init__(self, indicator_facade: IndicatorFacade, active_time_ranges: list[tuple[time, time]]):
+        super().__init__(indicator_facade)
         self.indicator_facade = indicator_facade
         self.active_time_ranges: list[tuple[time, time]] = active_time_ranges
 
-        self.er = None
+        self.er: EntryReport = None
         self.stop_loss = None
         self.take_profit = None
         self.enter_ma = None
@@ -46,64 +45,13 @@ class AbsStrategy(ABC):
         pass
 
     @property
-    def _ma_long(self):
-        return self.indicator_facade.pma_long()
-
-    @property
-    def _ma_short(self):
-        return self.indicator_facade.pma_short()
-
-    @property
-    def _price(self):
-        return self.indicator_facade.latest_price()
-
-    @property
-    def _sd(self):
-        return self.indicator_facade.sd()
-
-    @property
-    def _vma_long(self):
-        return self.indicator_facade.vma_long()
-
-    @property
-    def _vma_short(self):
-        return self.indicator_facade.vma_short()
-
-    @property
-    def _covariance_long(self):
-        return self.indicator_facade.covariance_long()
-
-    @property
-    def _covariance_short(self):
-        return self.indicator_facade.covariance_short()
-
-    @property
-    def _is_high_volume(self):
-        return self._vma_short >= self._vma_long
-
-    @property
-    def _sell_buy_ratio(self):
-        return self.indicator_facade.sell_buy_diff()
-
-    @property
-    def _bid_ask_ratio(self):
-        return self.indicator_facade.bid_ask_diff_ma()
-
-    @property
-    def _sd_stop_loss(self):
-        return self.indicator_facade.sd_stop_loss()
-
-    @property
     def _is_active_time(self):
-        current_time = self.indicator_facade.now().time()
-        for start, end in self.active_time_ranges:
-            if (
-                    (end < start and (current_time >= start or current_time <= end)) or
-                    (end > start and (start <= current_time <= end))
-            ):
-                return True
+        return is_in_time_ranges(
+            self.indicator_facade.now().time(),
+            self.active_time_ranges
+        )
 
-        return False
+
 
     def report_entry(self, er: EntryReport):
         self.er = er
@@ -119,7 +67,7 @@ class AbsStrategy(ABC):
         self.stop_loss = None
         self.take_profit = None
 
-        self.enter_ma = self._ma_long
+        self.enter_ma = self._ma_l
         self.enter_sd = self._sd
 
         self._report_entry_detail(er)
@@ -142,7 +90,7 @@ class AbsStrategy(ABC):
 
         is_buy = res.action == Action.Buy
         is_long = is_buy == is_in
-        msg = self._msg_template(is_in, is_long, self._ma_long, self._sd, self._price, self._covariance_long)
+        msg = self._msg_template(is_in, is_long, self._ma_l, self._sd, self._price, self._covariance_long)
         self.logger.info(msg)
         ui_signal_emitter.emit_strategy(msg)
         return res

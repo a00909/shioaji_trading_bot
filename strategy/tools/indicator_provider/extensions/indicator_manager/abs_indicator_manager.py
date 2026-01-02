@@ -6,9 +6,9 @@ from typing import Final
 from redis.client import Redis
 
 from strategy.tools.indicator_provider.extensions.data.indicator import Indicator
-from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
+from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type import IndicatorType
 from tick_manager.rtm.realtime_tick_manager import RealtimeTickManager
-from tools.utils import get_redis_date_tag, get_serial
+from tools.utils import get_redis_date_tag, get_serial, get_by_time_range
 
 
 class AbsIndicatorManager(ABC):
@@ -21,6 +21,7 @@ class AbsIndicatorManager(ABC):
         self.length: Final[timedelta] = length
         self.symbol: Final[str] = symbol
         self.buffer: list[Indicator] = []
+        self.change_rate_buffer: list[float] = []
 
         self.redis = redis
         self.start_time: datetime = start_time
@@ -47,6 +48,30 @@ class AbsIndicatorManager(ABC):
             self.dump_to_redis()
             self.buffer.append(new)
 
+    def change_rate(self, window_size=None):
+        """
+        方法:找窗口的左側，用最新值(右側)減掉，除以間隔數
+        :return:
+        """
+        if not (self.buffer and len(self.buffer) >= 2):
+            return 0
+
+        if not window_size:
+            window_size = self.length
+
+        prev_index = get_by_time_range(
+            self.buffer,
+            0,
+            len(self.buffer),
+            self.last().datetime - window_size
+        )
+
+        if self.get(prev_index) == 0:
+            return 0
+
+        change_rate = (self.get() - self.get(prev_index))
+        return change_rate
+
     @abstractmethod
     def calculate(self, now: datetime, last: Indicator) -> Indicator:
         pass
@@ -54,7 +79,7 @@ class AbsIndicatorManager(ABC):
     @cache
     def get_key_postfix(self):
         # tmf:ma30s:2024.12.12:
-        return f'{self.symbol}:{self.indicator_type}{self.length.total_seconds()}s:{get_redis_date_tag(self.start_time)}'
+        return f'{self.symbol}:{self.indicator_type.value}{self.length.total_seconds()}s:{get_redis_date_tag(self.start_time)}'
 
     @cache
     def get_serial_key(self):
@@ -87,11 +112,11 @@ class AbsIndicatorManager(ABC):
     def clear_buffer(self):
         self.buffer.clear()
 
-    def get(self, backward_idx=-1, value_only=True):
+    def get(self, idx=-1, return_indicator=False):
+        indicator = self.buffer[idx] if abs(idx) + (1 if idx > 0 else 0) <= len(self.buffer) else None
 
-        indicator = self.buffer[backward_idx] if abs(backward_idx) <= len(self.buffer) else None
-
-        if indicator:
-            if value_only:
-                return indicator.value
+        if not indicator:
+            return None
+        if return_indicator:
             return indicator
+        return indicator.get()

@@ -1,8 +1,9 @@
-import functools
 import logging
 import os
 import time
-from datetime import datetime, timezone, timedelta
+from bisect import bisect_left, bisect_right
+from datetime import datetime, timedelta
+from datetime import time as datetime_time
 from decimal import Decimal
 
 import pandas as pd
@@ -12,8 +13,7 @@ from redis.client import Redis
 from shioaji.contracts import FetchStatus
 from shioaji.data import Ticks
 
-from data.bid_ask_fop_v1d1 import BidAskFOPv1D1
-from quote import QuoteManager
+from data.unified.bid_ask.bid_ask_fop import BidAskFOP
 from tools.constants import DEFAULT_TIMEZONE, UTC_TZ, DATE_FORMAT_REDIS
 from tools.custom_logging_formatter import CustomFormatter
 from tools.serial_manager import serial_manager
@@ -66,53 +66,6 @@ def get_now():
     return datetime.now(tz=DEFAULT_TIMEZONE)
 
 
-def default_tickfopv1():
-    from data.tick_fop_v1d1 import TickFOPv1D1
-
-    tick = TickFOPv1D1()
-    tick.code = ''
-    tick.datetime = None
-    tick.open = Decimal(-1)
-    tick.underlying_price = Decimal(-1)
-    tick.bid_side_total_vol = -1
-    tick.ask_side_total_vol = -1
-    tick.avg_price = Decimal(-1)
-    tick.close = Decimal(-1)
-    tick.high = Decimal(-1)
-    tick.low = Decimal(-1)
-    tick.amount = Decimal(-1)
-    tick.total_amount = Decimal(-1)
-    tick.volume = -1
-    tick.total_volume = -1
-    tick.tick_type = -1
-    tick.chg_type = -1
-    tick.price_chg = Decimal(-1)
-    tick.pct_chg = Decimal(-1)
-    tick.simtrade = False
-    return tick
-
-
-def default_bidaskv1d1():
-    bidask = BidAskFOPv1D1()
-    bidask.code = ''
-    bidask.datetime = None
-    bidask.bid_total_vol = -1
-    bidask.ask_total_vol = -1
-    bidask.bid_price = []
-    bidask.bid_volume = []
-    bidask.diff_bid_vol = []
-    bidask.ask_price = []
-    bidask.ask_volume = []
-    bidask.diff_ask_vol = []
-    bidask.first_derived_bid_price = Decimal(-1)
-    bidask.first_derived_ask_price = Decimal(-1)
-    bidask.first_derived_bid_vol = -1
-    bidask.first_derived_ask_vol = -1
-    bidask.underlying_price = Decimal(-1)
-    bidask.simtrade = False
-    return bidask
-
-
 def tick_to_dict(tick: sj.TickFOPv1):
     return {
         'code': tick.code,
@@ -135,6 +88,7 @@ def tick_to_dict(tick: sj.TickFOPv1):
         'pct_chg': str(tick.pct_chg),
         'simtrade': tick.simtrade,
     }
+
 
 def to_df(ticks: list[sj.TickFOPv1]):
     data = [tick_to_dict(tick) for tick in ticks]
@@ -165,18 +119,21 @@ def init_custom_logger():
 
 
 def ticks_to_tickfopv1(ticks: Ticks):
+    from data.unified.tick.tick_fop import TickFOP
+
     i = 0
     l = len(ticks.close)
     ret = []
     while i < l:
         dt = history_ts_to_datetime(ticks.ts[i])
-        tick = default_tickfopv1()
-        tick.datetime = dt
-        tick.close = ticks.close[i]
-        tick.volume = ticks.volume[i]
-        tick.bid_side_total_vol = ticks.bid_volume[i]
-        tick.ask_side_total_vol = ticks.ask_volume[i]
-        tick.tick_type = ticks.tick_type[i]
+        tick = TickFOP(
+            datetime=dt,
+            close=ticks.close[i],
+            volume=ticks.volume[i],
+            bid_side_total_vol=ticks.bid_volume[i],
+            ask_side_total_vol=ticks.ask_volume[i],
+            tick_type=ticks.tick_type[i],
+        )
         ret.append(tick)
         i += 1
     return ret
@@ -216,3 +173,67 @@ def error(val1, val2, tolerance=0.0001):
         return False
     if deviation(val1, val2) > tolerance:
         raise Exception(f'deviation exceeded tolerance: {val1}, {val2}')
+    return None
+
+
+def is_valid_range(buffer, left, right):
+    return len(buffer) and right <= len(buffer)
+
+
+def get_by_time_range(
+        buffer,
+        lo,
+        hi,
+        start: datetime,
+        end: datetime = None,
+        with_start=True,
+        with_end=True,
+        index_only=False
+) -> list | tuple | int:
+    """
+    bisect_right會找到右側插入點的位置; bisect_left則是左側插入點
+    :param buffer:
+    :param lo:
+    :param hi:
+    :param start:
+    :param end:
+    :param with_start:
+    :param with_end:
+    :param index_only:
+    :return:
+    """
+    ranges = (lo, hi)
+    if not is_valid_range(buffer, lo, hi):
+        return []
+
+    if with_start:
+        left = bisect_left(buffer, start, *ranges)
+    else:
+        left = bisect_right(buffer, start, *ranges)
+
+    if end:
+        if with_end:
+            right = bisect_right(buffer, end, *ranges)
+        else:
+            right = bisect_left(buffer, end, *ranges)
+
+        if index_only:
+            return left, right
+        return buffer[left:right]
+
+    return left
+
+
+def is_in_time_ranges(current_time: datetime_time, ranges: list[tuple[datetime_time, datetime_time]]):
+    for start, end in ranges:
+        if (
+                (end < start and (current_time >= start or current_time <= end)) or
+                (end > start and (start <= current_time <= end))
+        ):
+            return True
+
+    return False
+
+
+def replace_time(dt: datetime, t: datetime_time):
+    return dt.replace(hour=t.hour, minute=t.minute, second=t.second, microsecond=t.microsecond)

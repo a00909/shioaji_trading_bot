@@ -1,5 +1,5 @@
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Callable
 
 from pandas import DataFrame, to_datetime
@@ -7,8 +7,8 @@ from redis.client import Redis
 from shioaji.constant import TicksQueryType
 from shioaji.data import Ticks
 
-from data.tick_fop_v1d1 import TickFOPv1D1
-from tools.constants import DATE_FORMAT_SHIOAJI
+from data.unified.tick.tick_fop import TickFOP
+from tools.constants import DATE_FORMAT_DB_AND_SJ
 from tools.utils import ticks_to_tickfopv1, get_twse_date
 
 
@@ -26,14 +26,14 @@ class IndayHistoryGetter:
         self.received_count = 0
         self.received_total = 0
 
-        self.buffer: list[TickFOPv1D1] = []
+        self.buffer: list[TickFOP] = []
         self.window_size = window_size
 
     def check_inday_history(self):
         key = self.redis_key()
         res = self.redis.zrange(key, -1, -1, withscores=False)
         if res:
-            last_tick = TickFOPv1D1.deserialize(res[0])
+            last_tick = TickFOP.deserialize(res[0])
             self.last_end_time = last_tick.datetime
 
     def print_ticks(self, ticks):
@@ -91,7 +91,7 @@ class IndayHistoryGetter:
 
             self.api.ticks(
                 self.contract,
-                query_date.strftime(DATE_FORMAT_SHIOAJI),
+                query_date.strftime(DATE_FORMAT_DB_AND_SJ),
                 TicksQueryType.RangeTime,
                 time_start=d[0],
                 time_end=d[1],

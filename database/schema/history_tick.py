@@ -1,20 +1,21 @@
 from datetime import datetime
 
 from sqlalchemy import Column, Integer, Float, DateTime, Date, String, BigInteger
+
+from data.unified.bid_ask.bid_ask_fop import BidAskFOP
+from data.unified.tick.tick_fop import TickFOP
 from database.schema import Base
 
 __all__ = ['HistoryTick', 'HistoryTickMemo']
 
 from tools.constants import DEFAULT_TIMEZONE
 
-from tools.utils import default_tickfopv1, default_bidaskv1d1
-
 
 class HistoryTick(Base):
     __tablename__ = 'history_tick'
     # 基礎表格定義，不會直接儲存資料
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    ts = Column(DateTime(timezone=True), primary_key=True, index=True)
+    ts: datetime = Column(DateTime(timezone=True), primary_key=True, index=True)
     symbol = Column(String, index=True)
     close = Column(Float, nullable=False)
     volume = Column(Integer, nullable=False)
@@ -76,19 +77,20 @@ class HistoryTick(Base):
         )
 
     def to_tick_bidask_v1d1(self):
-        tick = default_tickfopv1()
-        bidask = default_bidaskv1d1()
+        bidask = BidAskFOP(
+            datetime=self.ts,
+            bid_price=self.bid_price,
+            bid_volume=self.bid_volume,
+            ask_price=self.ask_price,
+            ask_volume=self.ask_volume,
+        )
 
-        tick.datetime = self.ts
-        tick.close = self.close
-        tick.volume = self.volume
-        tick.tick_type = self.tick_type
-
-        bidask.datetime = self.ts
-        bidask.bid_price = self.bid_price
-        bidask.bid_volume = self.bid_volume
-        bidask.ask_price = self.ask_price
-        bidask.ask_volume = self.ask_volume
+        tick = TickFOP(
+            datetime=self.ts,
+            close=self.close,
+            volume=self.volume,
+            tick_type=self.tick_type,
+        )
 
         return tick, bidask
 

@@ -19,7 +19,7 @@ class MaStrategy(AbsStrategy):
             indicator_facade,
             [
                 (time(9, 0), time(13, 30)),
-                (time(15, 15), time(4, 0))
+                # (time(15, 15), time(4, 0))
             ]
         )
 
@@ -39,11 +39,11 @@ class MaStrategy(AbsStrategy):
                 # abs(self._covariance_long) < 10000
                 # self._vma_long < 200
         ):
-            if self._price <= self._ma_long - self._sd * 1.4 :
+            if self._ma_p>self._ma_s>self._ma_m:
                 params = [
                     Action.Buy,
                 ]
-            elif self._price >= self._ma_long + self._sd * 1.4:
+            elif self._ma_p<self._ma_s<self._ma_m:
                 params = [
                     Action.Sell,
                 ]
@@ -64,25 +64,10 @@ class MaStrategy(AbsStrategy):
         direction = 1 if self.er.action == Action.Buy else -1
         action_map = {1: [Action.Sell], -1: [Action.Buy]}
 
-        if (self.er.deal_price - self._price) * direction >= self._sd*1.5 :
+        if direction == 1 and self._ma_p<self._ma_s :
             params = action_map[direction]
-
-        # # 固定止盈
-        if (self._price - self.er.deal_price) * direction >= self._sd * 1:
+        elif direction == -1 and self._ma_p>self._ma_s:
             params = action_map[direction]
-
-        # if self._is_high_volume and self._covariance_long * direction < -20000 and self._covariance_short * direction<0:
-        #     params = action_map[direction]
-
-        # if self.stop_loss:
-        #     if (self._price - self.stop_loss) * direction >= self._sd:
-        #         self.stop_loss = self._price - direction * 0.5 * self._sd
-        #     elif (self._price - self.stop_loss) * direction < 0:
-        #         params = action_map[direction]
-        #
-        #
-        # elif (self._price - self.er.deal_price) * direction >= self._sd * 2:
-        #     self.stop_loss = self._price - self._sd * direction
 
         res = self._get_report(params, is_in=False)
 

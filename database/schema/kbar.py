@@ -6,11 +6,16 @@ from database.schema import Base
 
 __all__ = ['KBar', 'KBarMemo']
 
+
+from mixins.datetime_comparable_mixin import DatetimeComparableMixin
+
 from tools.constants import DEFAULT_TIMEZONE
 
 
-class KBar(Base):
+class KBar(Base, DatetimeComparableMixin):
+    _datetime_comparable_field_name = 'ts'
     __tablename__ = 'k_bar'
+
     # 基礎表格定義，不會直接儲存資料
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     symbol = Column(String, index=True)
@@ -21,6 +26,12 @@ class KBar(Base):
     close = Column(Float, nullable=False)
     volume = Column(Integer, nullable=False)
     amount = Column(Float, nullable=False)
+
+    __table_args__ = (
+        {
+            "postgresql_partition_by": "RANGE(ts)",
+        },
+    )
 
     def to_string(self, separator: str = ":") -> str:
         return (
@@ -45,7 +56,7 @@ class KBar(Base):
             'low': self.low,
             'close': self.close,
             'volume': self.volume,
-            'amount':self.amount,
+            'amount': self.amount,
         }
 
     @classmethod
@@ -56,12 +67,12 @@ class KBar(Base):
             id=int(parts[0]),
             symbol=str(parts[1]),
             ts=datetime.fromtimestamp(float(parts[2])).replace(tzinfo=DEFAULT_TIMEZONE),
-            open=float(parts[4]),
-            high=float(parts[5]),
-            low=float(parts[6]),
-            close=float(parts[7]),
-            volume=int(parts[8]),
-            amount=float(parts[9])
+            open=float(parts[3]),
+            high=float(parts[4]),
+            low=float(parts[5]),
+            close=float(parts[6]),
+            volume=int(parts[7]),
+            amount=float(parts[8])
         )
 
 

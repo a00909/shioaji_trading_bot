@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
 
+from data.unified.tick.tick_fop import TickFOP
 from tick_manager.rtm_extensions.backtracking_time_getter import BacktrackingTimeGetter
 from tools.app import App
 from tools.constants import DEFAULT_TIMEZONE
-from tools.utils import default_tickfopv1
 
 
 def get_key():
@@ -18,7 +18,7 @@ def print_nl_by_5(data):
     print()
 
 
-app = App(init=True, init_api=False)
+app = App(init=True, init_api_if_init_app=False)
 
 bttg = BacktrackingTimeGetter(app.redis, get_key)
 
@@ -28,8 +28,9 @@ data_exists = app.redis.exists(get_key())
 if not data_exists:
     data = {}
     for i in range(100):
-        tick = default_tickfopv1()
-        tick.datetime = start + timedelta(seconds=1 * i)
+        tick = TickFOP(
+            datetime=start + timedelta(seconds=1 * i)
+        )
         s = tick.serialize(i)
         data[s] = tick.datetime.timestamp()
 

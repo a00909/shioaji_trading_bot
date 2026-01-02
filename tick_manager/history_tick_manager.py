@@ -1,42 +1,34 @@
 import traceback
-from datetime import datetime, timedelta
-from typing_extensions import override
+from datetime import timedelta, time
 
-from redis.client import Redis
-from shioaji import Shioaji
 from shioaji.constant import TicksQueryType
 from shioaji.data import Ticks
-from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
+from typing_extensions import override
 
 from database.schema.history_tick import HistoryTickMemo, HistoryTick
-from tick_manager.abs_history_data_manager import AbsHistoryDataManager
-from tools.utils import get_now, history_ts_to_datetime
-from tools.constants import DATE_FORMAT_SHIOAJI
+from tick_manager.history_data_manager_base import HistoryDataManagerBase
+from tools.constants import EXP86400
+from tools.utils import history_ts_to_datetime, replace_time, is_in_time_ranges
 
 
-class HistoryTickManager(AbsHistoryDataManager[HistoryTick]):
-    history_ticks_key_prefix = 'history.tick'
+class HistoryTickManager(HistoryDataManagerBase[HistoryTick]):
 
     def __init__(self, api, redis, session_maker: sessionmaker[Session], log_on=True):
         super().__init__(api, redis, session_maker, log_on)
 
-    def redis_key(self, symbol, date):
-        return f'{self.history_ticks_key_prefix}:{symbol}:{date}'
+    @property
+    def _redis_key_prefix(self):
+        return 'history.tick'
 
-    @staticmethod
-    def _memo_key(key):
-        return f'{key}:memo'
-
-    @override
-    def _get_data_from_db(self, symbol, start, end=None):
+    def _get_data_from_db(self, symbol, start):
         with self.session_maker() as session:
             memo = session.query(HistoryTickMemo).get(
-                {"date": datetime.strptime(start, self.date_format_db).date(), "symbol": symbol}
+                {"date": self._dt(start).date(), "symbol": symbol}
             )
             if memo:
                 # 將字串轉換為datetime對象
-                date_obj = datetime.strptime(start, self.date_format_db)
+                date_obj = self._dt(start)
 
                 previous_day = date_obj - timedelta(days=1)
 
@@ -44,14 +36,13 @@ class HistoryTickManager(AbsHistoryDataManager[HistoryTick]):
                 end_time = date_obj.replace(hour=13, minute=45, second=0)
                 results = session.query(HistoryTick).filter(
                     HistoryTick.ts.between(start_time, end_time),
-                    HistoryTick.symbol == symbol
+                    HistoryTick.symbol == symbol  # noqa
                 ).order_by(HistoryTick.ts).all()
 
                 return True, results
             return False, []
 
-    @override
-    def _set_data_to_db(self, data, symbol, start, end=None):
+    def _set_data_to_db(self, data, symbol, start):
         ticks_len = len(data.ts)
 
         new_ticks = []
@@ -68,49 +59,47 @@ class HistoryTickManager(AbsHistoryDataManager[HistoryTick]):
                 tick_type=data.tick_type[i],
             ))
         memo = HistoryTickMemo(
-            date=datetime.strptime(start, self.date_format_db).date(),
+            date=self._dt(start).date(),
             symbol=symbol
         )
 
-        suc = self._commit_to_db(HistoryTick.__tablename__, start, new_ticks, memo)
-        return suc, new_ticks if suc else suc, []
+        suc = self._commit_to_db(HistoryTick.__tablename__, [start], new_ticks, [memo])
+        return (suc, new_ticks) if suc else (suc, [])
 
-    @override
-    def _get_data_from_redis(self, symbol, start, end=None):
-        key = self.redis_key(symbol, start)
+    def _get_data_from_redis(self, symbol, start: str):
+        key = self._redis_key(symbol, start)
 
-        if self.redis.sismember(self._memo_key(key), key):
-            results = self.redis.lrange(key, 0, -1)
-            return True, [HistoryTick.from_string(ht) for ht in results]
+        if self.redis.exists(self._memo_key(key)):
+            # if not ranges:
+                results = self.redis.zrange(key, 0, -1)
+                return True, [HistoryTick.from_string(ht) for ht in results]
+            # else:
+            #     timestamp_ranges = self._translate_time_ranges(start, ranges)
+            #     pipe = self.redis.pipeline()
+            #     for l, r in timestamp_ranges:
+            #         pipe.zrangebyscore(key, l, r)
+            #     results = pipe.execute(raise_on_error=True)
+                return True, [HistoryTick.from_string(ht) for ranged_ht in results for ht in ranged_ht]
         return False, []
 
-    @override
-    def _set_data_to_redis(self, data: list[HistoryTick], symbol, start, end=None):
+    def _set_data_to_redis(self, data: list[HistoryTick], symbol, start):
         pipe = self.redis.pipeline()
-        key = self.redis_key(symbol, start)
-        redis_data = []
+        key = self._redis_key(symbol, start)
+        if data:
+            redis_data = {
+                d.to_string(): d.ts.timestamp() for d in data
+            }
 
-        for i in data:
-            redis_data.append(i.to_string())
-
-        if redis_data:
-            pipe.rpush(key, *redis_data)
-            pipe.expire(key, 86400)
+            pipe.zadd(key, redis_data)
+            pipe.expire(key, EXP86400)
         else:
-            print('no data.(might be weekends?)')
+            self._log('no history tick data.(might be weekends?)')
 
-        pipe.sadd(self._memo_key(key), key)
-        pipe.expire(self._memo_key(key), 86400)
+        pipe.set(self._memo_key(key), self.redis_memo_default_value, ex=EXP86400)
 
-        try:
-            pipe.execute(True)
-        except Exception as e:
-            print(f"發生錯誤: {traceback.format_exc()}")
-            return False
-        return True
+        return pipe.execute(True)
 
-    @override
-    def _get_data_from_api(self, contract, start, end=None) -> Ticks:
+    def _get_data_from_api(self, contract, start) -> Ticks:
         ticks = self.api.ticks(
             contract,
             start,
@@ -118,20 +107,19 @@ class HistoryTickManager(AbsHistoryDataManager[HistoryTick]):
         )
         return ticks
 
-    @override
-    def _prepare_data(self, contract, start, end=None):
+    def _prepare_data(self, contract, start):
         symbol = contract.symbol
 
-        self.log('Fetching..')
+        self._log('Fetching..')
         ticks = self._get_data_from_api(contract, start)
 
-        self.log('Set ticks to db..')
+        self._log('Set ticks to db..')
         suc, history_ticks = self._set_data_to_db(ticks, symbol, start)
 
         if not suc:
             return False, []
 
-        self.log('Set ticks to redis..')
+        self._log('Set ticks to redis..')
         suc = self._set_data_to_redis(history_ticks, symbol, start)
 
         if not suc:
@@ -139,6 +127,47 @@ class HistoryTickManager(AbsHistoryDataManager[HistoryTick]):
 
         return True, history_ticks
 
-    def log(self, *args, **kwargs):
-        if self.log_on:
-            print(*args, **kwargs)
+    # def _translate_time_ranges(self, start, time_ranges) -> list[tuple[float, float]]:
+    #     timestamp_ranges = []
+    #     for l, r in time_ranges:
+    #         timestamp_ranges.append(
+    #             (
+    #                 replace_time(self._dt(start), l).timestamp(),
+    #                 replace_time(self._dt(start), r).timestamp()
+    #             )
+    #         )
+    #     return timestamp_ranges
+
+    def _get_data(self, contract, start: str)-> list[HistoryTick]:
+        self._date_check(start)
+        symbol = contract.symbol
+
+        self._log(f'Try load {self._type_name} from redis...')
+        suc, data = self._get_data_from_redis(symbol, start)
+        if suc:
+            return data
+
+        self._log(f'Try load {self._type_name} from db...')
+        suc, data = self._get_data_from_db(symbol, start)
+        if suc:
+            self._log('DB -> redis...')
+            self._set_data_to_redis(data, symbol, start)
+            return data
+
+        # fetch new data
+        self._log(f'Fetch {self._type_name} from api...')
+        suc, data = self._prepare_data(contract, start)
+        if not suc:
+            return []
+
+        return data
+
+    def get_data(self, contract, start: str, time_ranges: list[tuple[time, time]] = None) -> list[HistoryTick]:
+        data = self._get_data(contract,start)
+        if time_ranges:
+            filtered = []
+            for t in data:
+                if is_in_time_ranges(t.ts.time(),time_ranges):
+                    filtered.append(t)
+            return filtered
+        return data

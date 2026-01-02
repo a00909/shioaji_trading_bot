@@ -1,13 +1,11 @@
 from itertools import takewhile
-from typing_extensions import override
 
 from redis.client import Redis
 
-from data.tick_fop_v1d1 import TickFOPv1D1
+from data.unified.tick.tick_fop import TickFOP
 from strategy.tools.indicator_provider.extensions.data.covariance import Covariance
-from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
+from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type import IndicatorType
 from strategy.tools.indicator_provider.extensions.indicator_manager.abs_indicator_manager import AbsIndicatorManager
-from tools.utils import deviation, error
 
 
 class CovarianceManager(AbsIndicatorManager):
@@ -15,22 +13,6 @@ class CovarianceManager(AbsIndicatorManager):
         super().__init__(IndicatorType.COVARIANCE, length, symbol, start_time, redis, rtm)
         self.end_count = None
         self.end_datetime = None
-
-    @override
-    def get(self, backward_idx=-1, value_only=True):
-        indicator: Covariance = super().get(backward_idx, value_only=False)
-
-        if not indicator:
-            return None
-
-        if value_only:
-            covariance = (
-                    indicator.spt / indicator.data_count
-                    - (indicator.sp * indicator.st / indicator.data_count ** 2)
-            )
-            return covariance
-        else:
-            return indicator
 
     def calculate(self, now, last: Covariance):
         new = Covariance()
@@ -132,7 +114,7 @@ class CovarianceManager(AbsIndicatorManager):
 
         return count, sp, st, spt
 
-    def _collect_end_count(self, ticks: list[TickFOPv1D1]):
+    def _collect_end_count(self, ticks: list[TickFOP]):
         if not ticks:
             self.end_count = 0
             return

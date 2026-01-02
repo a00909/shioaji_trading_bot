@@ -6,8 +6,8 @@ from redis.client import Redis
 from shioaji import TickFOPv1
 from typing_extensions import override
 
-from data.bid_ask_fop_v1d1 import BidAskFOPv1D1
-from data.tick_fop_v1d1 import TickFOPv1D1
+from data.unified.bid_ask.bid_ask_fop import BidAskFOP
+from data.unified.tick.tick_fop import TickFOP
 from tick_manager.rtm.rtm_base import RealtimeTickManagerBase
 from tick_manager.rtm_extensions.inday_history_getter import IndayHistoryGetter
 from tools.constants import DEFAULT_TIMEZONE
@@ -17,7 +17,7 @@ from tools.utils import decode_redis, get_redis_date_tag, get_serial
 class RealtimeTickManager(RealtimeTickManagerBase):
     realtime_key_prefix = 'realtime.tick'
 
-    def __init__(self, api: sj.Shioaji, redis, contract):
+    def __init__(self, api: sj.Shioaji, redis, contract, getting_history=True):
 
         super().__init__()
         self.api = api
@@ -64,6 +64,8 @@ class RealtimeTickManager(RealtimeTickManagerBase):
 
         self.last_total_volume = None
 
+        self.getting_history = getting_history
+
     def start(self, wait_for_ready=True):
         if self.started:
             print('rtm already started.')
@@ -95,8 +97,10 @@ class RealtimeTickManager(RealtimeTickManagerBase):
 
     def wait_for_ready(self):
         self.ihg.wait_for_finish()
-        if not self.skip_combine:
-            self._combine_data()
+        if self.skip_combine or not self.getting_history:
+            return
+
+        self._combine_data()
 
     def _combine_data(self):
         in_day_history = self.ihg.get_data()
@@ -106,7 +110,7 @@ class RealtimeTickManager(RealtimeTickManagerBase):
             self.start_time.timestamp(),
             withscores=False
         )
-        older_data = [TickFOPv1D1.deserialize(r) for r in older_raw]
+        older_data = [TickFOP.deserialize(r) for r in older_raw]
 
         # to remove duplicated parts at the end
         in_day_start = in_day_history[0].datetime
@@ -139,27 +143,43 @@ class RealtimeTickManager(RealtimeTickManagerBase):
     def start_time(self) -> datetime:
         return self.ihg.start_time
 
-    def _on_tick_fop_v1_handler(self, _exchange: sj.Exchange, tick: TickFOPv1):
-        tick.datetime = tick.datetime.replace(tzinfo=DEFAULT_TIMEZONE)
-
-        tickv1d1 = TickFOPv1D1.tickfopv1_to_v1d1(tick)
-
+    def _check_tick_validity(self, tick, tickv1d1):
         # print delay
         now = datetime.now(tz=DEFAULT_TIMEZONE)
         if not self.last_print_delay or now - self.last_print_delay > timedelta(seconds=10):
             delay = (now - tick.datetime).total_seconds()
-            print(f'[Realtime tick delay] {delay} s.\n')
+            print(f'[realtime tick delay] {delay} s.')
             self.last_print_delay = now
 
         # check tick miss
         if self.last_total_volume and tickv1d1.volume + self.last_total_volume != tickv1d1.total_volume:
             print(
-                f'[Tick miss check] '
+                f'[tick miss detected] '
                 f't_vol_total_last={self.last_total_volume}, '
                 f't_vol_total={tickv1d1.total_volume}, '
                 f't_vol={tickv1d1.volume}'
             )
         self.last_total_volume = tickv1d1.total_volume
+
+    def _deal_inday_history(self, tickv1d1):
+        # in-day history ticks
+        if not self.start_time:
+            self.ihg.set_start_time(tickv1d1.datetime)
+            self.ihg.check_inday_history()
+            if tickv1d1.volume == tickv1d1.total_volume or not self.getting_history:
+                self.ihg.set_finish()
+                self.skip_combine = True
+                self.need_lock = False
+                print('rtm ready.')
+            else:
+                self.ihg.prepare_in_day_history()
+
+    def _on_tick_fop_v1_handler(self, _exchange: sj.Exchange, tick: TickFOPv1):
+        tick.datetime = tick.datetime.replace(tzinfo=DEFAULT_TIMEZONE)
+
+        tickv1d1 = TickFOP.from_sj(tick)
+
+        self._check_tick_validity(tick, tickv1d1)
 
         # append to buffer
         if self.need_lock:
@@ -170,20 +190,10 @@ class RealtimeTickManager(RealtimeTickManagerBase):
 
         self.tick_received_event.set()
 
-        # in-day history ticks
-        if not self.start_time:
-            self.ihg.set_start_time(tickv1d1.datetime)
-            self.ihg.check_inday_history()
-            if tickv1d1.volume != tickv1d1.total_volume:  # 非第一根tick
-                self.ihg.prepare_in_day_history()
-            else:
-                self.ihg.set_finish()
-                self.skip_combine = True
-                self.need_lock = False
-                print('rtm ready.')
+        self._deal_inday_history(tickv1d1)
 
     def _on_bidask_fop_v1_handler(self, _exchange: sj.Exchange, bidask: sj.BidAskFOPv1):
-        bidaskvidi = BidAskFOPv1D1.bidaskv1_to_v1d1(bidask)
+        bidaskvidi = BidAskFOP.bidaskv1_to_v1d1(bidask)
         self.bid_ask_buffer.append(bidaskvidi)
 
     # redis

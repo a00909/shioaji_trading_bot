@@ -11,13 +11,13 @@ while True:
     )
     match op:
         case 'u':
-            print(app.api.usage(),'\n')
+            print(app.api.usage(), '\n')
         case 'la':
-            print(app.api.list_accounts(),'\n')
+            print(app.api.list_accounts(), '\n')
+        case 'lc':
+            c = app.api.Contracts
+            print(c, '\n')
         case _:
             print('bye.')
             app.shut()
             break
-
-
-

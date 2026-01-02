@@ -1,8 +1,7 @@
 from redis.client import Redis
-from typing_extensions import override
 
-from data.tick_fop_v1d1 import TickFOPv1D1
-from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
+from data.unified.tick.tick_fop import TickFOP
+from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type import IndicatorType
 from strategy.tools.indicator_provider.extensions.data.standard_deviation import StandardDeviation
 from strategy.tools.indicator_provider.extensions.indicator_manager.abs_indicator_manager import AbsIndicatorManager
 
@@ -18,23 +17,6 @@ class StandardDeviationManager(AbsIndicatorManager):
         self.end_square_sum = None
         self.end_count = None
         self.end_sum = None
-
-    @override
-    def get(self, backward_idx=-1, value_only=True):
-        indicator: StandardDeviation = super().get(backward_idx, value_only=False)
-
-        if not indicator:
-            return None
-
-        if value_only:
-            variance = (
-                    (indicator.square_sum / indicator.data_count)
-                    - (indicator.sum / indicator.data_count) ** 2
-            )
-            value = variance ** 0.5
-            return value
-        else:
-            return indicator
 
     def calculate(self, now, last: StandardDeviation):
         new = StandardDeviation()
@@ -146,7 +128,7 @@ class StandardDeviationManager(AbsIndicatorManager):
 
         return None, None, None
 
-    def _collect_end_data(self, ticks: list[TickFOPv1D1]):
+    def _collect_end_data(self, ticks: list[TickFOP]):
         last_dt = ticks[-1].datetime
         p = len(ticks) - 1
         self.end_sum = 0

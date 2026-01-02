@@ -1,4 +1,4 @@
-from data.tick_fop_v1d1 import TickFOPv1D1
+from data.unified.tick.tick_fop import TickFOP
 from strategy.tools.indicator_provider.extensions.data.indicator import Indicator
 from tools import RedisManager
 from tools.plotter import plotter
@@ -19,7 +19,7 @@ ticks_raw = redis.zrange("realtime.tick:TXFR1:2025.01.03", 0, -1)
 pma_3600s_raw = redis.zrange("indicator:TXFR1:IndicatorType.PMA3600.0s:2025.01.03", 0, -1)
 pma_300s_raw = redis.zrange("indicator:TXFR1:IndicatorType.PMA300.0s:2025.01.03", 0, -1)
 
-ticks = [TickFOPv1D1.deserialize(d) for d in ticks_raw]
+ticks = [TickFOP.deserialize(d) for d in ticks_raw]
 pma_3600s = [Indicator.deserialize(d) for d in pma_3600s_raw]
 pma_300s = [Indicator.deserialize(d) for d in pma_300s_raw]
 

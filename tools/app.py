@@ -19,23 +19,23 @@ from tools.utils import init_custom_logger
 
 
 class App:
-    def __init__(self, init=False, simu=True, init_api=True):
+    def __init__(self, init=False, simu=True, init_api_if_init_app=True):
         self.redis: Redis = None
         self.history_tick_manager: HistoryTickManager = None
         self.api: Shioaji = None
         self.session_maker: sessionmaker[Session] = None
         self.engine = None
         self.simu = simu
-        self.contract = None
+        self.get_contract = None
         self.api_started = False
 
         if init:
-            self.init(init_api=init_api)
+            self.init(init_api=init_api_if_init_app)
 
     def init(self, init_api):
         if init_api:
             self.login_api()
-            self.contract = self.api.Contracts.Futures.TMF.TMFR1
+            self.get_contract = self.api.Contracts.Futures.TMF.TMFR1
             self.api_started = True
 
         load_dotenv()
@@ -49,10 +49,10 @@ class App:
         init_custom_logger()
 
     def set_contract(self, contract):
-        self.contract = contract
+        self.get_contract = contract
 
     def get_contract(self):
-        return self.contract
+        return self.get_contract
 
     def shut(self):
         if self.api_started:
@@ -76,3 +76,9 @@ class App:
         while self.api.Contracts.status == FetchStatus.Fetching:
             print(f'Contracts status: {self.api.Contracts.status}')
             time.sleep(2)
+
+    def contract(self):
+        return self.get_contract()
+
+    def get_default_account(self):
+        return self.api.futopt_account

@@ -1,19 +1,22 @@
 from datetime import timedelta, datetime
+from typing import Any
 
-from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
+from mixins.datetime_comparable_mixin import DatetimeComparableMixin
+from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type import IndicatorType
 from tools.constants import DEFAULT_TIMEZONE
 from tools.utils import decode_redis
 
 
-class Indicator:
+class Indicator(DatetimeComparableMixin):
     L1_SEPERATOR = ':'
 
     def __init__(self):
-        self.indicator_type: [IndicatorType] = None
+        super().__init__()
+        self.indicator_type: IndicatorType = None
         self.length: timedelta = None
 
         self.data_count: int = None
-        self.value: float = None
+        self.value: float | Any = None
         self.datetime: datetime = None
 
     @classmethod
@@ -42,3 +45,15 @@ class Indicator:
 
         )
         return data
+
+    def get(self):
+        if not self.value:
+            self.value = self._calc()
+        return self.value
+
+    def _calc(self):
+        """
+        child class should override this method if not use self.value
+        :return:
+        """
+        raise NotImplemented

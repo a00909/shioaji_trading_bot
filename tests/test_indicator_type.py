@@ -1,6 +1,6 @@
 from typing import Type
 
-from strategy.tools.indicator_provider.extensions.data.indicator_type import IndicatorType
+from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type import IndicatorType
 
 indicator_type = IndicatorType.from_string('pma')
 print(type(indicator_type),indicator_type)
