@@ -2,11 +2,11 @@ from abc import ABC
 from dataclasses import dataclass
 from decimal import Decimal
 
-from data.unified.bases.base import Base
+from data.unified.bases.market_data_base import MarketDataBase
 
 
 @dataclass(frozen=True, slots=True)
-class TickBase(Base, ABC):
+class TickBase(MarketDataBase, ABC):
     open: Decimal = Decimal(-1)
     bid_side_total_vol: int = -1
     ask_side_total_vol: int = -1

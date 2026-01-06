@@ -4,7 +4,6 @@ import time
 from bisect import bisect_left, bisect_right
 from datetime import datetime, timedelta
 from datetime import time as datetime_time
-from decimal import Decimal
 
 import pandas as pd
 import shioaji as sj
@@ -13,7 +12,6 @@ from redis.client import Redis
 from shioaji.contracts import FetchStatus
 from shioaji.data import Ticks
 
-from data.unified.bid_ask.bid_ask_fop import BidAskFOP
 from tools.constants import DEFAULT_TIMEZONE, UTC_TZ, DATE_FORMAT_REDIS
 from tools.custom_logging_formatter import CustomFormatter
 from tools.serial_manager import serial_manager

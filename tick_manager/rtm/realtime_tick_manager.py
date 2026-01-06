@@ -174,27 +174,27 @@ class RealtimeTickManager(RealtimeTickManagerBase):
             else:
                 self.ihg.prepare_in_day_history()
 
-    def _on_tick_fop_v1_handler(self, _exchange: sj.Exchange, tick: TickFOPv1):
-        tick.datetime = tick.datetime.replace(tzinfo=DEFAULT_TIMEZONE)
+    def _on_tick_fop_v1_handler(self, _exchange: sj.Exchange, sj_tick: TickFOPv1):
+        sj_tick.datetime = sj_tick.datetime.replace(tzinfo=DEFAULT_TIMEZONE)
 
-        tickv1d1 = TickFOP.from_sj(tick)
+        tick = TickFOP.from_sj(sj_tick)
 
-        self._check_tick_validity(tick, tickv1d1)
+        self._check_tick_validity(sj_tick, tick)
 
         # append to buffer
         if self.need_lock:
             with self.buffer_lock:
-                self.tick_buffer.append(tickv1d1)
+                self.tick_buffer.append(tick)
         else:
-            self.tick_buffer.append(tickv1d1)
+            self.tick_buffer.append(tick)
 
         self.tick_received_event.set()
 
-        self._deal_inday_history(tickv1d1)
+        self._deal_inday_history(tick)
 
-    def _on_bidask_fop_v1_handler(self, _exchange: sj.Exchange, bidask: sj.BidAskFOPv1):
-        bidaskvidi = BidAskFOP.bidaskv1_to_v1d1(bidask)
-        self.bid_ask_buffer.append(bidaskvidi)
+    def _on_bidask_fop_v1_handler(self, _exchange: sj.Exchange, sj_bidask: sj.BidAskFOPv1):
+        bidask = BidAskFOP.from_sj(sj_bidask)
+        self.bid_ask_buffer.append(bidask)
 
     # redis
     def _redis_key(self):

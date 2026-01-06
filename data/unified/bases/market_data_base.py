@@ -10,7 +10,7 @@ from tools.utils import decode_redis
 
 
 @dataclass(frozen=True, slots=True)
-class Base(DatetimeComparableMixin, ABC):
+class MarketDataBase(DatetimeComparableMixin, ABC):
     code: str = ''
     datetime: datetime = None
     simtrade: bool = False
@@ -30,7 +30,7 @@ class Base(DatetimeComparableMixin, ABC):
     }
 
     def __post_init__(self):
-        if type(self) is Base:
+        if type(self) is MarketDataBase:
             self._cant_be_init_error()
 
     def _cant_be_init_error(self):
