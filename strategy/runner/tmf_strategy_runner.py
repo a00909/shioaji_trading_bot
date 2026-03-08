@@ -17,6 +17,7 @@ from strategy.strategies.extensions.donchian_swing_state_memorizer import Donchi
 from strategy.strategies.ma_stragegy import MaStrategy
 from strategy.strategies.period_hl_strategy import PeriodHLStrategy
 from strategy.strategies.period_hl_strategy_trend import PeriodHLStrategyTrend
+from strategy.strategies.reversal_strategy import ReversalStrategy
 from strategy.strategies.sd_stop_loss_strategy import SdStopLossStrategy
 from strategy.strategies.trend_strategy import TrendStrategy
 from strategy.strategies.volume_strategy import VolumeStrategy
@@ -60,6 +61,7 @@ class TMFStrategyRunner(AbsStrategyRunner):
         period_hl_stra = PeriodHLStrategyTrend(self.indicator_facade)
         donchian_trend = DonchianStrategyTrend(self.indicator_facade)
         donchian_swing = DonchianStrategySwing(self.indicator_facade, donchian_indicator_state_memorizer)
+        rv = ReversalStrategy(self.indicator_facade)
 
         # add more strategies
         # hint: sequence matters
@@ -67,10 +69,11 @@ class TMFStrategyRunner(AbsStrategyRunner):
         # self.strategies.append(ma_stra)
         # self.strategies.append(trend_stra)
         # self.strategies.append(bb_stra)
-        self.strategies.append(sd_stop_loss_stra)
+        # self.strategies.append(sd_stop_loss_stra)
         # self.strategies.append(period_hl_stra)
         # self.strategies.append(donchian_trend)
         # self.strategies.append(donchian_swing)
+        self.strategies.append(rv)
 
     def prepare(self):
         self.update_positions()

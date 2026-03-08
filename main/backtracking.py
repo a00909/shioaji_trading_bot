@@ -30,7 +30,7 @@ date list:
 active_time_ranges = [
     (time(8, 45), time(13, 45))
 ]
-dummy_rtm = DummyRealtimeTickManager(contract, htm, app.redis, '2025-10-30',active_time_ranges)
+dummy_rtm = DummyRealtimeTickManager(contract, htm, app.redis, '2025-08-07',active_time_ranges)
 dummy_api = DummyShioaji(htm, dummy_rtm, account)
 op = OrderPlacer(dummy_api, contract, dummy_api.foutopt_account)
 

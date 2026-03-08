@@ -39,7 +39,7 @@ class LongBacktracker:
         strategy_runner.start()
         strategy_runner.wait_for_finish()
 
-        profit_losses:list[FutureProfitLoss] = dummy_api.list_profit_loss(None)
+        profit_losses: list[FutureProfitLoss] = dummy_api.list_profit_loss(None)
 
         if profit_losses:
             df = pd.DataFrame([item.dict() for item in profit_losses])
@@ -78,20 +78,19 @@ class LongBacktracker:
         t_profits = []
         t_losses = []
         for pl in self.total_profit_losses:
-            net = pl.pnl - pl.tax -pl.fee
+            net = pl.pnl - pl.tax - pl.fee
             if net > 0:
                 t_profits.append(net)
             if net < 0:
                 t_losses.append(net)
 
-        win_rate_percentage = len(t_profits)/(len(t_losses)+len(t_profits))*100
-        pl_ratio = (sum(t_profits)/len(t_profits))/(sum(t_losses)/len(t_losses)) * -1
+        if len(t_profits) > 0 and len(t_losses) > 0:
+            win_rate_percentage = len(t_profits) / (len(t_losses) + len(t_profits)) * 100
+            pl_ratio = (sum(t_profits) / len(t_profits)) / (sum(t_losses) / len(t_losses)) * -1
 
-        print(f'{len(self.total_profit_losses)} trades.')
-        print(f'win rate: {win_rate_percentage}%')
-        print(f'pl ratio: {pl_ratio}')
-
-
+            print(f'{len(self.total_profit_losses)} trades.')
+            print(f'win rate: {win_rate_percentage}%')
+            print(f'pl ratio: {pl_ratio}')
 
     def start(self, start, end, active_time_ranges: list[tuple[time, time]] = None):
         start_dt = datetime.strptime(start, '%Y-%m-%d')

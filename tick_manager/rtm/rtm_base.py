@@ -84,6 +84,7 @@ class RealtimeTickManagerBase:
     def prev_tick(self):
         if self.tick_right - self.tick_left + 1 >= 2 and self.tick_right >= 0:
             return self.tick_buffer[self.tick_right - 1]
+        return None
 
     def latest_bidask(self):
         return self.bid_ask_buffer[self.bid_ask_right]
