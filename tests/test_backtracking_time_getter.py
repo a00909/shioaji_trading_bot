@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from data.unified.tick.tick_fop import TickFOP
-from tick_manager.rtm_extensions.backtracking_time_getter import BacktrackingTimeGetter
+from data_manager.rtm.extensions.backtracking_time_getter import BacktrackingTimeGetter
 from tools.app import App
 from tools.constants import DEFAULT_TIMEZONE
 

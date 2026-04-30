@@ -1,4 +1,4 @@
-from tick_manager.rtm.realtime_tick_manager import RealtimeTickManager
+from data_manager.rtm.realtime_tick_manager import RealtimeTickManager
 from tools.app import App
 import shioaji as sj
 import pandas as pd

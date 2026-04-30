@@ -18,7 +18,7 @@ from strategy.tools.indicator_provider.extensions.indicator_manager.standard_dev
     StandardDeviationManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.vma_manager import VMAManager
 from strategy.tools.kbar_indicators.kbar_indicator_center import KbarIndicatorCenter
-from tick_manager.rtm.realtime_tick_manager import RealtimeTickManager
+from data_manager.rtm.realtime_tick_manager import RealtimeTickManager
 from tools.utils import get_twse_date
 
 

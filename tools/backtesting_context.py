@@ -1,8 +1,8 @@
 from datetime import timedelta
 
 from tools.app import App
-from tick_manager.history_tick_manager import HistoryTickManager
-from tick_manager.kbar_manager import KBarManager
+from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
+from data_manager.history_data_manager.kbar_manager import KBarManager
 from strategy.tools.kbar_indicators.intraday_interval_volume_avg.intraday_interval_volume_avg import (
     IntradayIntervalVolumeAvg,
 )

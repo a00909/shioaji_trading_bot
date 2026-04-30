@@ -4,7 +4,7 @@ from strategy.runner.tmf_strategy_runner import TMFStrategyRunner
 from strategy.tools.indicator_provider.dummy_indicator_provider import DummyIndicatorProvider
 from strategy.tools.kbar_indicators.kbar_indicator_center import KbarIndicatorCenter
 from strategy.tools.order_placer import OrderPlacer
-from tick_manager.history_tick_manager import HistoryTickManager
+from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
 from tools.app import App
 from tools.backtracking.dummy_rtm import DummyRealtimeTickManager
 from tools.backtracking.dummy_shioaji import DummyShioaji

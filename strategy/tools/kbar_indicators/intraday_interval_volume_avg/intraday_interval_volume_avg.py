@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta, time
 from redis import Redis
 
 from database.schema.kbar import KBar
-from tick_manager.kbar_manager import KBarManager
+from data_manager.history_data_manager.kbar_manager import KBarManager
 from tools.constants import EXP86400, DATE_FORMAT_REDIS
 from tools.kbar_utils import to_time_key
 

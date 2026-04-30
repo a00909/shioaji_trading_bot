@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from tools import RedisManager
-from tick_manager.history_tick_manager import HistoryTickManager
+from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
 
 import shioaji as sj
 

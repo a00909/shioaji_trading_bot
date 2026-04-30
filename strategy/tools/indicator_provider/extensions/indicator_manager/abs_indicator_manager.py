@@ -7,7 +7,7 @@ from redis.client import Redis
 
 from strategy.tools.indicator_provider.extensions.data.indicator import Indicator
 from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type import IndicatorType
-from tick_manager.rtm.realtime_tick_manager import RealtimeTickManager
+from data_manager.rtm.realtime_tick_manager import RealtimeTickManager
 from tools.utils import get_redis_date_tag, get_serial, get_by_time_range
 
 
