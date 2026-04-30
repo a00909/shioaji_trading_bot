@@ -24,10 +24,9 @@ class KBarManager(HistoryDataManagerBase[KBar, KBarMemo]):
     def _redis_key_prefix(self):
         return 'kbar'
 
-    def _get_data_from_db(self, symbol, missing_ranges: list[tuple[date, date]]) -> list[KBar]:
+    def _get_data_from_db(self, session, symbol, missing_ranges: list[tuple[date, date]]) -> list[KBar]:
         if not missing_ranges:
             return []
-        session = self.session_maker()
 
         results = session.query(KBar).filter(
             KBar.symbol == symbol,  # noqa
@@ -36,7 +35,6 @@ class KBarManager(HistoryDataManagerBase[KBar, KBarMemo]):
                 for s, e in missing_ranges
             )),
         ).order_by(KBar.ts).all()
-        session.close()
 
         return results  # noqa
 
@@ -219,27 +217,30 @@ class KBarManager(HistoryDataManagerBase[KBar, KBarMemo]):
         else:
             raise Exception('type error with start or end.')
 
+        api_data = []
+        db_data = []
         with self.session_maker() as session:
             missing_ranges_db = self._find_missing_ranges_db(session, symbol, start, end)
 
-            api_data = []
             if missing_ranges_db:
-                suc, api_data = self._fetch_data_to_db_and_return_it(session,contract, missing_ranges_db)
+                suc, api_data = self._fetch_data_to_db_and_return_it(session, contract, missing_ranges_db)
                 if not suc:
                     raise Exception('error while preparing db data.')
 
-        missing_ranges_redis, existing_data = self._get_missing_dates_and_existing_data_in_redis(
-            symbol,
-            start,
-            end
-        )
-        db_data = []
-        if missing_ranges_redis:
-            missing_ranges_redis = self._subtract_ranges(missing_ranges_redis, missing_ranges_db)
-            db_data = self._get_data_from_db(symbol, missing_ranges_redis)
+            missing_ranges_redis, existing_data = self._get_missing_dates_and_existing_data_in_redis(
+                symbol,
+                start,
+                end
+            )
 
-        self._set_data_to_redis(api_data, symbol, missing_ranges_db)
-        self._set_data_to_redis(db_data, symbol, missing_ranges_redis)
+            if missing_ranges_redis:
+                missing_ranges_redis = self._subtract_ranges(missing_ranges_redis, missing_ranges_db)
+                db_data = self._get_data_from_db(session, symbol, missing_ranges_redis)
+
+        if api_data:
+            self._set_data_to_redis(api_data, symbol, missing_ranges_db)
+        if db_data:
+            self._set_data_to_redis(db_data, symbol, missing_ranges_redis)
 
         api_data.sort()
         db_data.sort()
