@@ -9,7 +9,7 @@ from sqlalchemy import select, or_, and_
 from sqlalchemy.orm import sessionmaker, Session
 
 from database.schema.kbar import KBar, KBarMemo
-from tick_manager.history_data_manager_base import HistoryDataManagerBase
+from data_manager.history_data_manager.history_data_manager_base import HistoryDataManagerBase
 from tools.constants import DATE_FORMAT_DB_AND_SJ, EXP86400
 from tools.kbar_utils import to_time_key
 from tools.utils import history_ts_to_datetime

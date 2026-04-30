@@ -1,5 +1,5 @@
-from tick_manager.history_tick_manager import HistoryTickManager
-from tick_manager.rtm.realtime_tick_manager import RealtimeTickManager
+from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
+from data_manager.rtm.realtime_tick_manager import RealtimeTickManager
 
 
 class TickManager:

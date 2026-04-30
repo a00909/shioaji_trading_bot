@@ -4,9 +4,9 @@ from redis.client import Redis
 from typing_extensions import override
 
 from data.unified.tick.tick_fop import TickFOP
-from tick_manager.history_tick_manager import HistoryTickManager
-from tick_manager.rtm.rtm_base import RealtimeTickManagerBase
-from tick_manager.rtm_extensions.backtracking_time_getter import BacktrackingTimeGetter
+from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
+from data_manager.rtm.rtm_base import RealtimeTickManagerBase
+from data_manager.rtm.extensions.backtracking_time_getter import BacktrackingTimeGetter
 from tools.utils import get_now
 
 

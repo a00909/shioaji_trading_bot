@@ -4,12 +4,12 @@ from datetime import datetime, timedelta
 import shioaji as sj
 from redis.client import Redis
 from shioaji import TickFOPv1
-from typing_extensions import override
+from typing import override
 
 from data.unified.bid_ask.bid_ask_fop import BidAskFOP
 from data.unified.tick.tick_fop import TickFOP
-from tick_manager.rtm.rtm_base import RealtimeTickManagerBase
-from tick_manager.rtm_extensions.inday_history_getter import IndayHistoryGetter
+from data_manager.rtm.rtm_base import RealtimeTickManagerBase
+from data_manager.rtm.extensions.inday_history_getter import IndayHistoryGetter
 from tools.constants import DEFAULT_TIMEZONE
 from tools.utils import decode_redis, get_redis_date_tag, get_serial
 

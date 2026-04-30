@@ -1,20 +1,17 @@
 import heapq
-import traceback
 from dataclasses import dataclass, field
 from datetime import timedelta, time, date, datetime
 from functools import lru_cache
-from linecache import cache
 
 from shioaji.constant import TicksQueryType
 from shioaji.data import Ticks
 from sqlalchemy import select, union_all, literal
 from sqlalchemy.orm import Session, sessionmaker, aliased
-from typing_extensions import override
 
+from data_manager.history_data_manager.history_data_manager_base import HistoryDataManagerBase
 from database.schema.history_tick import HistoryTickMemo, HistoryTick
-from tick_manager.history_data_manager_base import HistoryDataManagerBase
-from tools.constants import EXP86400, DATE_FORMAT_DB_AND_SJ
-from tools.utils import history_ts_to_datetime, replace_time, is_in_time_ranges
+from tools.constants import EXP86400
+from tools.utils import history_ts_to_datetime, is_in_time_ranges
 
 
 @dataclass
