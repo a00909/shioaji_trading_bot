@@ -4,7 +4,6 @@ from shioaji.position import FutureProfitLoss
 
 from strategy.runner.tmf_strategy_runner import TMFStrategyRunner
 from strategy.tools.indicator_provider.dummy_indicator_provider import DummyIndicatorProvider
-from strategy.tools.indicator_provider.indicator_provider import IndicatorProvider
 from strategy.tools.kbar_indicators.kbar_indicator_center import KbarIndicatorCenter
 from strategy.tools.order_placer import OrderPlacer
 from tick_manager.history_tick_manager import HistoryTickManager

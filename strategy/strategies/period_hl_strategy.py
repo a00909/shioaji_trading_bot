@@ -52,7 +52,7 @@ class PeriodHLStrategy(AbsStrategy):
             if (
                     self._ma_s > self._donchian_h_25
                     and self._donchian_h - self._ma_s < 50
-                    and self._sell_buy_ratio <-0.02
+                    and self._net_buy_ratio_m <-0.02
 
             ):
                 params = [
@@ -64,7 +64,7 @@ class PeriodHLStrategy(AbsStrategy):
             elif (
                     self._ma_s < self._donchian_l_25
                     and self._ma_s - self._donchian_l < 50
-                    and self._sell_buy_ratio > 0.02
+                    and self._net_buy_ratio_m > 0.02
             ):
                 params = [
                     Action.Buy,

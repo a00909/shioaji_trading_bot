@@ -48,7 +48,7 @@ class DonchianStrategyTrend(AbsStrategy):
                     self._donchian_hh_accumulation > 1
                     and 0 < self._ma_p - self._donchian_h_25 < 55
                     and self._donchian_breakthrough_h
-                    and self._sell_buy_ratio > 0
+                    and self._net_buy_ratio_m > 0
             ):
                 params = [
                     Action.Buy,
@@ -57,7 +57,7 @@ class DonchianStrategyTrend(AbsStrategy):
                     self._donchian_ll_accumulation > 1
                     and 0 < self._donchian_l_25 - self._ma_p < 55
                     and self._donchian_breakthrough_l
-                    and self._sell_buy_ratio < 0
+                    and self._net_buy_ratio_m < 0
                     and False
             ):
                 params = [
@@ -94,7 +94,7 @@ class DonchianStrategyTrend(AbsStrategy):
         elif direction == -1:
             if (
                     self._donchian_hh_accumulation > 0
-                    or self._sell_buy_ratio > 0
+                    or self._net_buy_ratio_m > 0
                     or self._ma_p > self._donchian_l_25
             ):
                 params = action_map[direction]

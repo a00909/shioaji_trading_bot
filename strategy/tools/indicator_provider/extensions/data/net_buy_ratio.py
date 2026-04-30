@@ -4,21 +4,21 @@ from strategy.tools.indicator_provider.extensions.data.indicator import Indicato
 from tools.utils import decode_redis
 
 
-class SellBuyRatio(Indicator):
+class NetBuyRatio(Indicator):
     L2_SEPERATOR = '|'
 
     def __init__(self):
         super().__init__()
-        self.sell = None
-        self.buy = None
+        self.active_buy_vol = None
+        self.active_sell_vol = None
 
     @override
     def serialize(self, serial):
         data_str = super().serialize(serial) + self.L2_SEPERATOR
 
         data_str += (
-            f'{self.sell}{self.L2_SEPERATOR}'
-            f'{self.buy}'
+            f'{self.active_buy_vol}{self.L2_SEPERATOR}'
+            f'{self.active_sell_vol}'
         )
 
         return data_str
@@ -32,10 +32,10 @@ class SellBuyRatio(Indicator):
         super().deserialize(l2_data[0], from_subclass=True, subclass_instance=instance)
 
         values = l2_data[1].split(cls.L1_SEPERATOR)
-        instance.sell = values[0]
-        instance.buy = values[1]
+        instance.active_buy_vol = values[0]
+        instance.active_sell_vol = values[1]
         return instance
 
     @override
     def _calc(self):
-        return (self.sell-self.buy) / (self.sell + self.buy)
+        return (self.active_buy_vol - self.active_sell_vol) / (self.active_buy_vol + self.active_sell_vol)

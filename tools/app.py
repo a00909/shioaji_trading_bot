@@ -1,4 +1,3 @@
-import logging
 import os
 import time
 
@@ -14,7 +13,6 @@ from tick_manager.history_tick_manager import HistoryTickManager
 
 import shioaji as sj
 
-from tools.custom_logging_formatter import CustomFormatter
 from tools.utils import init_custom_logger
 
 

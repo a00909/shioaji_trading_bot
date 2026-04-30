@@ -89,7 +89,7 @@ class IndayHistoryGetter:
         for d in data:
             print(f'query range: {d}')
 
-            self.api.ticks(
+            self.api.daily_ticks(
                 self.contract,
                 query_date.strftime(DATE_FORMAT_DB_AND_SJ),
                 TicksQueryType.RangeTime,

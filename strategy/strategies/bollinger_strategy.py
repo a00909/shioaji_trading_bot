@@ -46,7 +46,7 @@ class BollingerStrategy(AbsStrategy):
 
         ):
             if (
-                    not self._sell_buy_ratio < -0.5
+                    not self._net_buy_ratio_m < -0.5
                     and self._price < self._ma_l - self._bb_width * 0.5
                     and self._price - (self._bb_lower - self._sd * 2) < 55
             ):
@@ -55,7 +55,7 @@ class BollingerStrategy(AbsStrategy):
                 ]
                 self._fixed_stop_loss = self._bb_lower - self._sd * 2
             elif (
-                    not self._sell_buy_ratio > 0.5
+                    not self._net_buy_ratio_m > 0.5
                     and self._price > self._ma_l + self._bb_width * 0.5
                     and (self._bb_lower + self._sd * 2) - self._price < 55
             ):
@@ -86,7 +86,7 @@ class BollingerStrategy(AbsStrategy):
             elif self._price > self._ma_l + self._bb_width * 0.5:
                 if (
                         self._price < self._sd_stop_loss
-                        or (self._sell_buy_ratio < -0.2 and self._sell_buy_ratio_change_rate < -0.2)
+                        or (self._net_buy_ratio_m < -0.2 and self._net_buy_ratio_change_rate < -0.2)
                 ):
                     params = action_map[direction]
 
@@ -96,7 +96,7 @@ class BollingerStrategy(AbsStrategy):
             elif self._price < self._ma_l - self._bb_width * 0.5:
                 if (
                         self._price > self._sd_stop_loss
-                        or (self._sell_buy_ratio > 0.2 and self._sell_buy_ratio_change_rate > 0.2)
+                        or (self._net_buy_ratio_m > 0.2 and self._net_buy_ratio_change_rate > 0.2)
                 ):
                     params = action_map[direction]
 

@@ -4,32 +4,32 @@ from redis.client import Redis
 
 from data.unified.tick.tick_fop import TickFOP
 from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type import IndicatorType
-from strategy.tools.indicator_provider.extensions.data.sell_buy_ratio import SellBuyRatio
+from strategy.tools.indicator_provider.extensions.data.net_buy_ratio import NetBuyRatio
 from strategy.tools.indicator_provider.extensions.indicator_manager.abs_indicator_manager import AbsIndicatorManager
 
 
-class SellBuyRatioManager(AbsIndicatorManager):
+class NetBuyRatioManager(AbsIndicatorManager):
     def __init__(self, length, symbol: str, start_time, redis: Redis, rtm):
-        super().__init__(IndicatorType.SELL_BUY_RATIO, length, symbol, start_time, redis, rtm)
+        super().__init__(IndicatorType.NET_BUY_RATIO, length, symbol, start_time, redis, rtm)
         self.end_count = None
         self.end_datetime = None
 
 
-    def calculate(self, now, last: SellBuyRatio):
-        new = SellBuyRatio()
+    def calculate(self, now, last: NetBuyRatio):
+        new = NetBuyRatio()
         new.datetime = self.rtm.latest_tick().datetime
         new.indicator_type = self.indicator_type
         new.length = self.length
 
         if last:
             # 增量更新
-            count, sell, buy = self._calc_incr(last, now)
+            count, active_buy_vol, active_sell_vol = self._calc_incr(last, now)
 
         else:
-            count, sell, buy = self._calc_first(now)
+            count, active_buy_vol, active_sell_vol = self._calc_first(now)
 
-        new.sell = sell
-        new.buy = buy
+        new.active_buy_vol = active_buy_vol
+        new.active_sell_vol = active_sell_vol
         new.data_count = count
 
         return new
@@ -39,49 +39,55 @@ class SellBuyRatioManager(AbsIndicatorManager):
         if len(ticks) == 0:
             raise Exception('no data to calculate!')
 
-        sell = 0
-        buy = 0
+        # tick_type 定義：
+        # 1 = 賣價成交（外盤）→ 買方主動 → 偏多
+        # 2 = 買價成交（內盤）→ 賣方主動 → 偏空
+        active_buy_vol = 0
+        active_sell_vol = 0
         for t in ticks:
             if t.tick_type == 1:
-                sell += t.volume
+                active_sell_vol += t.volume   # 外盤 = 買方主動
             elif t.tick_type == 2:
-                buy += t.volume
+                active_buy_vol += t.volume  # 內盤 = 賣方主動
 
         self._collect_end_count(ticks)
-        return len(ticks), sell, buy
+        return len(ticks), active_buy_vol, active_sell_vol
 
-    def _calc_incr(self, last: SellBuyRatio, now):
+    def _calc_incr(self, last: NetBuyRatio, now):
         # 增量更新
 
         added_ticks = self.rtm.get_ticks_by_time_range(last.datetime, now)
 
-        a_count, a_sell, a_buy = self._deal_added_ticks(added_ticks)
-        r_count, r_sell, r_buy = self._deal_removed_ticks(now, last)
+        a_count, a_active_buy_vol, a_active_sell_vol = self._deal_added_ticks(added_ticks)
+        r_count, r_active_buy_vol, r_active_sell_vol = self._deal_removed_ticks(now, last)
 
         count = last.data_count + a_count - r_count
-        sell = last.sell + a_sell - r_sell
-        buy = last.buy + a_buy - r_buy
+        active_buy_vol = last.active_buy_vol + a_active_buy_vol - r_active_buy_vol
+        active_sell_vol = last.active_sell_vol + a_active_sell_vol - r_active_sell_vol
 
         self._collect_end_count(added_ticks)
 
-        return count, sell, buy
+        return count, active_buy_vol, active_sell_vol
 
     def _deal_added_ticks(self, added_ticks: list[TickFOP]):
 
-        sell = 0
-        buy = 0
+        active_buy_vol = 0
+        active_sell_vol = 0
         count = 0
 
         for e, t in enumerate(added_ticks):
             if t.datetime <= self.end_datetime and e < self.end_count:
                 continue
             count+=1
+            # tick_type 定義：
+            # 1 = 賣價成交（外盤）→ 買方主動 → 偏多
+            # 2 = 買價成交（內盤）→ 賣方主動 → 偏空
             if t.tick_type == 1:
-                sell += t.volume
+                active_sell_vol += t.volume   # 外盤 = 買方主動
             elif t.tick_type == 2:
-                buy += t.volume
+                active_buy_vol += t.volume  # 內盤 = 賣方主動
 
-        return count, sell, buy
+        return count, active_buy_vol, active_sell_vol
 
     def _deal_removed_ticks(self, now, last):
         if now == last.datetime:
@@ -95,17 +101,20 @@ class SellBuyRatioManager(AbsIndicatorManager):
                 with_end=False
             )
 
-        sell = 0
-        buy = 0
+        active_buy_vol = 0
+        active_sell_vol = 0
 
         if deprecated_ticks:
             for t in deprecated_ticks:
+                # tick_type 定義：
+                # 1 = 賣價成交（外盤）→ 買方主動 → 偏多
+                # 2 = 買價成交（內盤）→ 賣方主動 → 偏空
                 if t.tick_type == 1:
-                    sell += t.volume
+                    active_sell_vol += t.volume   # 外盤 = 買方主動
                 elif t.tick_type == 2:
-                    buy += t.volume
+                    active_buy_vol += t.volume  # 內盤 = 賣方主動
 
-        return len(deprecated_ticks), sell, buy
+        return len(deprecated_ticks), active_buy_vol, active_sell_vol
 
     def _collect_end_count(self, ticks: list[TickFOP]):
         if not ticks:

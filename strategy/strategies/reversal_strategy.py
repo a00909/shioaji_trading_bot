@@ -82,7 +82,7 @@ class ReversalStrategy(AbsStrategy):
             return None
 
         params = None
-        sbp = self._sell_buy_power
+        sbp = self._net_buy_power
 
         # --- Short Entry Logic ---
         # 1. Detect extreme high momentum

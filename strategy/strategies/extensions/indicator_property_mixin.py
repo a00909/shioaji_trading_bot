@@ -50,24 +50,28 @@ class IndicatorPropertyMixin:
         return self._vma_short >= self._vma_long
 
     @property
-    def _sell_buy_ratio(self):
-        return self.indicator_facade.sell_buy_ratio()
+    def _net_buy_ratio_m(self):
+        return self.indicator_facade.net_buy_ratio_m()
 
     @property
-    def _sell_buy_power(self):
-        return self.indicator_facade.sell_buy_power()
+    def _net_buy_ratio_s(self):
+        return self.indicator_facade.net_buy_ratio_s()
 
     @property
-    def _sell_buy_ratio_change_rate(self):
-        return self.indicator_facade.sell_buy_ratio_change_rate()
+    def _net_buy_ratio_l(self):
+        return self.indicator_facade.net_buy_ratio_l()
+
+    @property
+    def _net_buy_power(self):
+        return self.indicator_facade.net_buy_power()
+
+    @property
+    def _net_buy_ratio_change_rate(self):
+        return self.indicator_facade.net_buy_ratio_change_rate()
 
     @property
     def _bid_ask_ratio(self):
         return self.indicator_facade.bid_ask_diff_ma()
-
-    @property
-    def _sd_stop_loss(self):
-        return self.indicator_facade.sd_stop_loss()
 
     @property
     def _iiva(self):
@@ -160,3 +164,4 @@ class IndicatorPropertyMixin:
     @property
     def _donchian_breakthrough_l_s(self):
         return self.indicator_facade.donchian_l_breakthrough_s()
+

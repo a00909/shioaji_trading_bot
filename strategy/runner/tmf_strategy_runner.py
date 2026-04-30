@@ -11,16 +11,17 @@ from strategy.runner.abs_strategy_runner import AbsStrategyRunner
 from strategy.strategies.abs_strategy import AbsStrategy
 from strategy.strategies.bollinger_strategy import BollingerStrategy
 from strategy.strategies.data import EntryReport
-from strategy.strategies.donchian_strategy import DonchianStrategyTrend
-from strategy.strategies.donchian_strategy_swing import DonchianStrategySwing
+from strategy.strategies.donchian import DonchianStrategyTrend
+from strategy.strategies.donchian_swing import DonchianStrategySwing
 from strategy.strategies.extensions.donchian_swing_state_memorizer import DonchianSwingStateMemorizer
-from strategy.strategies.ma_stragegy import MaStrategy
+from strategy.strategies.moving_average import MaStrategy
 from strategy.strategies.period_hl_strategy import PeriodHLStrategy
 from strategy.strategies.period_hl_strategy_trend import PeriodHLStrategyTrend
 from strategy.strategies.reversal_strategy import ReversalStrategy
-from strategy.strategies.sd_stop_loss_strategy import SdStopLossStrategy
-from strategy.strategies.trend_strategy import TrendStrategy
-from strategy.strategies.volume_strategy import VolumeStrategy
+from strategy.strategies.sd_trailing_stop import SdStopLossStrategy
+from strategy.strategies.sullivan import SullivanStrategy
+from strategy.strategies.trend import TrendStrategy
+from strategy.strategies.volume import VolumeStrategy
 from strategy.tools.indicator_provider.indicator_facade import IndicatorFacade
 from tools.constants import DEFAULT_TIMEZONE
 from tools.plotter import plotter
@@ -62,6 +63,7 @@ class TMFStrategyRunner(AbsStrategyRunner):
         donchian_trend = DonchianStrategyTrend(self.indicator_facade)
         donchian_swing = DonchianStrategySwing(self.indicator_facade, donchian_indicator_state_memorizer)
         rv = ReversalStrategy(self.indicator_facade)
+        su = SullivanStrategy(self.indicator_facade)
 
         # add more strategies
         # hint: sequence matters
@@ -73,7 +75,8 @@ class TMFStrategyRunner(AbsStrategyRunner):
         # self.strategies.append(period_hl_stra)
         # self.strategies.append(donchian_trend)
         # self.strategies.append(donchian_swing)
-        self.strategies.append(rv)
+        # self.strategies.append(rv)
+        self.strategies.append(su)
 
     def prepare(self):
         self.update_positions()
@@ -96,12 +99,8 @@ class TMFStrategyRunner(AbsStrategyRunner):
                 # # self.indicator_facade.pma_l,
                 self.indicator_facade.pma_m,
                 self.indicator_facade.pma_s,
-                self.indicator_facade.donchian_h,
-                self.indicator_facade.donchian_l,
-                self.indicator_facade.donchian_h_25,
-                self.indicator_facade.donchian_l_25,
-                self.indicator_facade.donchian_h_s,
-                self.indicator_facade.donchian_l_s,
+                # self.indicator_fac
+                # .donchian_l_s,
             ],
             # [
             #     self.indicator_facade.donchian_hh_accumulation,
@@ -115,7 +114,7 @@ class TMFStrategyRunner(AbsStrategyRunner):
             #     self.indicator_facade.donchian_lh_accumulation_s,
             # ],
             [
-                self.indicator_facade.sell_buy_power
+                self.indicator_facade.net_buy_power
             ],
             [
                 self.indicator_facade.volume_ratio,
@@ -123,7 +122,9 @@ class TMFStrategyRunner(AbsStrategyRunner):
                 # self.indicator_facade.iiva_l30d_i5m,
             ],
             [
-                self.indicator_facade.sell_buy_ratio,
+                self.indicator_facade.net_buy_ratio_s,
+                self.indicator_facade.net_buy_ratio_m,
+                self.indicator_facade.net_buy_ratio_l,
                 # self.indicator_facade.sell_buy_ratio_change_rate,
             ],
         ]

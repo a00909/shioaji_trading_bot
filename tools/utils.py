@@ -235,3 +235,4 @@ def is_in_time_ranges(current_time: datetime_time, ranges: list[tuple[datetime_t
 
 def replace_time(dt: datetime, t: datetime_time):
     return dt.replace(hour=t.hour, minute=t.minute, second=t.second, microsecond=t.microsecond)
+

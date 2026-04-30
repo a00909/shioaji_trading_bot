@@ -70,20 +70,32 @@ class IndicatorFacade:
         )
 
         # sell buy
-        self._len_sell_buy_ratio = timedelta(minutes=5)
-        self._len_sell_buy_ratio_change_rate = timedelta(minutes=3)
-        self.sell_buy_ratio = IndicatorFacadeUnit(
-            lambda: self._ip.sell_buy_ratio(self._len_sell_buy_ratio),
-            self._len_sell_buy_ratio,
-            IndicatorType.SELL_BUY_RATIO
+        self._len_net_buy_ratio_m = timedelta(minutes=5)
+        self.net_buy_ratio_m = IndicatorFacadeUnit(
+            lambda: self._ip.net_buy_ratio(self._len_net_buy_ratio_m),
+            self._len_net_buy_ratio_m,
+            IndicatorType.NET_BUY_RATIO
         )
-        self.sell_buy_ratio_change_rate = IndicatorFacadeUnit(
-            lambda: self._ip.sell_buy_ratio_change_rate(self._len_sell_buy_ratio, self._len_sell_buy_ratio_change_rate),
-            name=f'sell_buy_ratio_{self._len_sell_buy_ratio}_change_rate_{self._len_sell_buy_ratio_change_rate}'
+        self._len_net_buy_ratio_l = timedelta(minutes=10)
+        self.net_buy_ratio_l = IndicatorFacadeUnit(
+            lambda: self._ip.net_buy_ratio(self._len_net_buy_ratio_l),
+            self._len_net_buy_ratio_l,
+            IndicatorType.NET_BUY_RATIO
         )
-        self.sell_buy_power = IndicatorFacadeUnit(
-            lambda: self.sell_buy_ratio() * self.volume_ratio(),
-            name='sell_buy_power'
+        self._len_net_buy_ratio_s = timedelta(minutes=1)
+        self.net_buy_ratio_s = IndicatorFacadeUnit(
+            lambda: self._ip.net_buy_ratio(self._len_net_buy_ratio_s),
+            self._len_net_buy_ratio_s,
+            IndicatorType.NET_BUY_RATIO
+        )
+        self._len_net_buy_ratio_change_rate = timedelta(minutes=3)
+        self.net_buy_ratio_change_rate = IndicatorFacadeUnit(
+            lambda: self._ip.net_buy_ratio_change_rate(self._len_net_buy_ratio_m, self._len_net_buy_ratio_change_rate),
+            name=f'net_buy_ratio_{self._len_net_buy_ratio_m}_change_rate_{self._len_net_buy_ratio_change_rate}'
+        )
+        self.net_buy_power = IndicatorFacadeUnit(
+            lambda: self.net_buy_ratio_m() * self.volume_ratio(),
+            name='net_buy_power'
         )
 
         # sd
@@ -246,8 +258,8 @@ class IndicatorFacade:
         # )
 
         self.bid_ask_diff_ma = IndicatorFacadeUnit(
-            lambda: self._ip.bid_ask_ratio(self._len_sell_buy_ratio),
-            self._len_sell_buy_ratio,
+            lambda: self._ip.bid_ask_ratio(self._len_net_buy_ratio_m),
+            self._len_net_buy_ratio_m,
             indicator_type=IndicatorType.BID_ASK_RATIO
         )
 

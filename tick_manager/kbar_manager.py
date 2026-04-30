@@ -15,12 +15,10 @@ from tools.kbar_utils import to_time_key
 from tools.utils import history_ts_to_datetime
 
 
-class KBarManager(HistoryDataManagerBase[KBar]):
+class KBarManager(HistoryDataManagerBase[KBar, KBarMemo]):
 
     def __init__(self, api: Shioaji, redis: Redis, session_maker: sessionmaker[Session], log_on=True):
         super().__init__(api, redis, session_maker, log_on)
-
-        self.tpe = ThreadPoolExecutor(max_workers=8)
 
     @property
     def _redis_key_prefix(self):
@@ -38,10 +36,11 @@ class KBarManager(HistoryDataManagerBase[KBar]):
                 for s, e in missing_ranges
             )),
         ).order_by(KBar.ts).all()
+        session.close()
 
         return results  # noqa
 
-    def _set_data_to_db(self, data, symbol, ranges: list[tuple[date, date]]):
+    def _set_data_to_db(self, session, data, symbol, ranges: list[tuple[date, date]]):
         db_kbars: list[KBar] = []
         for kbars in data:
             for i in range(len(kbars.ts)):
@@ -81,7 +80,7 @@ class KBarManager(HistoryDataManagerBase[KBar]):
                 else:
                     cur = cur.replace(month=cur.month + 1, day=1)
 
-        suc = self._commit_to_db(KBar.__tablename__, first_days, db_kbars, memos)
+        suc = self._commit_to_db_with_session(session, KBar.__tablename__, first_days, db_kbars, memos)
         return (suc, db_kbars) if suc else (suc, [])
 
     def _get_data_from_redis(self, symbol, start: date, end: date):
@@ -153,11 +152,11 @@ class KBarManager(HistoryDataManagerBase[KBar]):
 
         return res
 
-    def _prepare_db_data(self, contract, ranges):
+    def _fetch_data_to_db_and_return_it(self, session, contract, ranges):
         symbol = contract.symbol
 
         tasks = [
-            self.tpe.submit(
+            self._tpe.submit(
                 self._get_data_from_api,
                 contract,
                 r_start.strftime('%Y-%m-%d'),
@@ -167,101 +166,13 @@ class KBarManager(HistoryDataManagerBase[KBar]):
 
         data = [t.result() for t in tasks]
 
-        suc, db_kbars = self._set_data_to_db(data, symbol, ranges)
+        suc, db_kbars = self._set_data_to_db(session, data, symbol, ranges)
         if not suc:
             return False, []
 
         return True, db_kbars
 
-    def get_data(self, contract, start: str | date, end: str | date) -> list[KBar]:
-        self._date_check(start, end)
-        symbol = contract.symbol
-        if isinstance(start, date) and isinstance(end, date):
-            pass
-        elif isinstance(start, datetime) and isinstance(end, datetime):
-            start = start.date()
-            end = end.date()
-        elif isinstance(start, str) and isinstance(end, str):
-            start = self._dt(start).date()
-            end = self._dt(end).date()
-        else:
-            raise Exception('type error with start or end.')
-
-        missing_ranges_db = self._find_missing_ranges_db(symbol, start, end)
-        api_data = []
-        if missing_ranges_db:
-            suc, api_data = self._prepare_db_data(contract, missing_ranges_db)
-            if not suc:
-                raise Exception('error while preparing db data.')
-
-        missing_ranges_redis, existing_data = self._find_missing_data_redis(
-            symbol,
-            start,
-            end,
-            returns_existing_data=True
-        )
-        db_data = []
-        if missing_ranges_redis:
-            missing_ranges_redis = self.subtract_ranges(missing_ranges_redis, missing_ranges_db)
-            db_data = self._get_data_from_db(symbol, missing_ranges_redis)
-
-        self._set_data_to_redis(api_data, symbol, missing_ranges_db)
-        self._set_data_to_redis(db_data, symbol, missing_ranges_redis)
-
-        api_data.sort()
-        db_data.sort()
-        existing_data.sort()
-        merged = list(heapq.merge(api_data, db_data, existing_data))
-
-        return merged
-
-    @staticmethod
-    def _group_dates_into_ranges(dates: list[date]) -> list[tuple[date, date]]:
-        if not dates:
-            return []
-
-        sorted_dates = sorted(dates)
-        ranges = []
-        range_start = sorted_dates[0]
-        prev_date = sorted_dates[0]
-
-        for current in sorted_dates[1:]:
-            if current == prev_date + timedelta(days=1):
-                prev_date = current
-            else:
-                ranges.append((range_start, prev_date))
-                range_start = current
-                prev_date = current
-
-        ranges.append((range_start, prev_date))
-        return ranges
-
-    def _find_missing_ranges_db(self, symbol, start: date, end: date):
-
-        # Step 1: 查已有 memo
-        stmt = select(KBarMemo.date).where(
-            KBarMemo.symbol == symbol,
-            KBarMemo.date.between(start, end)
-        )
-        with self.session_maker() as session:
-            existing_dates = set(session.execute(stmt).scalars().all())
-
-        # Step 2: 計算所有應該有的日期
-        all_dates = {
-            start + timedelta(days=i)
-            for i in range((end - start).days + 1)
-        }
-
-        # Step 3: 找出缺漏
-        missing_dates = list(all_dates - existing_dates)
-        date_ranges = self._group_dates_into_ranges(missing_dates)
-        self._log(
-            f'All ranges: {[(s.strftime(DATE_FORMAT_DB_AND_SJ), t.strftime(DATE_FORMAT_DB_AND_SJ)) for s, t in date_ranges]}'
-        )
-
-        return date_ranges
-
-    def _find_missing_data_redis(self, symbol, start: date, end: date, returns_existing_data=False):
+    def _get_missing_dates_and_existing_data_in_redis(self, symbol, start: date, end: date):
         pipe = self.redis.pipeline()
 
         # 預先建立日期與對應的 redis key
@@ -279,67 +190,60 @@ class KBarManager(HistoryDataManagerBase[KBar]):
         for d, k, exists in zip(dates, keys, memos):
             if not exists:
                 missing_dates.append(d)
-            elif returns_existing_data:
+            else:
                 existing_keys.append(k)
 
         data = []
-        if returns_existing_data and existing_keys:
+        if existing_keys:
             pipe = self.redis.pipeline()
             for k in existing_keys:
                 pipe.hgetall(k)
             results = pipe.execute()
-            data = [KBar.from_string(s) for batch in results for _,s in batch.items()]
+            data = [KBar.from_string(s) for batch in results for _, s in batch.items()]
 
-        if returns_existing_data:
-            return self._group_dates_into_ranges(missing_dates), data
+        return self._group_dates_into_ranges(missing_dates), data
 
-        return self._group_dates_into_ranges(missing_dates)
+    def get_data(self, contract, start: str | date, end: str | date) -> list[KBar]:
+        # todo: 評估從range改為列舉的方式
 
-    @staticmethod
-    def subtract_ranges(bigger: list[tuple[date, date]], smaller: list[tuple[date, date]]) -> list[tuple[date, date]]:
-        """
-        Compute A - B where A and B are sorted, non-overlapping ranges (inclusive).
-        Robust: handles B ranges that may span across multiple A ranges or lie outside A.
-        Returns a list of (start_date, end_date) tuples (inclusive).
-        Time complexity: O(len(A) + len(B)).
-        """
-        result = []
-        # make a mutable copy of B so we can update start when B spans multiple A's
-        b_list = [[b_start, b_end] for (b_start, b_end) in smaller]
-        j = 0
+        self._date_check(start, end)
+        symbol = contract.symbol
+        if isinstance(start, date) and isinstance(end, date):
+            pass
+        elif isinstance(start, datetime) and isinstance(end, datetime):
+            start = start.date()
+            end = end.date()
+        elif isinstance(start, str) and isinstance(end, str):
+            start = self._dt(start).date()
+            end = self._dt(end).date()
+        else:
+            raise Exception('type error with start or end.')
 
-        for a_start, a_end in bigger:
-            cur_start = a_start
+        with self.session_maker() as session:
+            missing_ranges_db = self._find_missing_ranges_db(session, symbol, start, end)
 
-            # skip B's that end before current A's start
-            while j < len(b_list) and b_list[j][1] < cur_start:
-                j += 1
+            api_data = []
+            if missing_ranges_db:
+                suc, api_data = self._fetch_data_to_db_and_return_it(session,contract, missing_ranges_db)
+                if not suc:
+                    raise Exception('error while preparing db data.')
 
-            while j < len(b_list):
-                b_start, b_end = b_list[j]
+        missing_ranges_redis, existing_data = self._get_missing_dates_and_existing_data_in_redis(
+            symbol,
+            start,
+            end
+        )
+        db_data = []
+        if missing_ranges_redis:
+            missing_ranges_redis = self._subtract_ranges(missing_ranges_redis, missing_ranges_db)
+            db_data = self._get_data_from_db(symbol, missing_ranges_redis)
 
-                # if the next B starts after current A ends, done with this A
-                if b_start > a_end:
-                    break
+        self._set_data_to_redis(api_data, symbol, missing_ranges_db)
+        self._set_data_to_redis(db_data, symbol, missing_ranges_redis)
 
-                # keep the gap before B within current A
-                if cur_start < b_start:
-                    result.append((cur_start, b_start - timedelta(days=1)))
+        api_data.sort()
+        db_data.sort()
+        existing_data.sort()
+        merged = list(heapq.merge(api_data, db_data, existing_data))
 
-                # consume the intersection of B with current A
-                if b_end <= a_end:
-                    # B finishes inside current A -> move cur_start after B and consume B entirely
-                    cur_start = b_end + timedelta(days=1)
-                    j += 1
-                else:
-                    # B extends beyond current A -> update B's start to the first day after current A
-                    # (so the remaining part of B will be applied to subsequent A segments)
-                    b_list[j][0] = a_end + timedelta(days=1)
-                    cur_start = b_end + timedelta(days=1)  # this will be > a_end, so loop exits
-                    break
-
-            # leftover tail of A
-            if cur_start <= a_end:
-                result.append((cur_start, a_end))
-
-        return result
+        return merged

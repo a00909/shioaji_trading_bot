@@ -10,7 +10,7 @@ active_time_ranges = [
 # lb.start('2025-07-07','2025-07-11')
 # lb.start('2025-06-02','2025-06-30')
 # lb.start('2025-06-30','2025-07-04')
-lb.start('2025-08-01', '2025-08-09', active_time_ranges)
+lb.start('2026-02-09', '2026-02-27', active_time_ranges)
 # lb.start('2025-06-09','2025-06-13')
 """
 memo:

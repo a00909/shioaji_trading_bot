@@ -1,6 +1,5 @@
 from strategy.runner.abs_strategy_runner import AbsStrategyRunner
 from strategy.runner.tmf_strategy_runner import TMFStrategyRunner
-from strategy.strategies.abs_strategy import AbsStrategy
 from strategy.tools.indicator_provider.indicator_provider import IndicatorProvider
 from strategy.tools.kbar_indicators.kbar_indicator_center import KbarIndicatorCenter
 from strategy.tools.order_placer import OrderPlacer

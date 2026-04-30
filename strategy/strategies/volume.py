@@ -34,12 +34,12 @@ class VolumeStrategy(AbsStrategy):
         params = None
         if self._vma_short > 250 and self._is_active_time:
             if (
-                    self._sell_buy_ratio > 0.5 + self.bid_ask_ratio_threshold and
+                    self._net_buy_ratio_m > 0.5 + self.bid_ask_ratio_threshold and
                     self._bid_ask_ratio > 0.5 + self.bid_ask_ratio_threshold
             ):
                 params = [Action.Buy]
             elif (
-                    self._sell_buy_ratio < 0.5 - self.bid_ask_ratio_threshold and
+                    self._net_buy_ratio_m < 0.5 - self.bid_ask_ratio_threshold and
                     self._bid_ask_ratio < 0.5 - self.bid_ask_ratio_threshold
             ):
                 params = [Action.Sell]

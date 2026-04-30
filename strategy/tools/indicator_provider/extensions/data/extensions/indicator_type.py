@@ -7,7 +7,7 @@ class IndicatorType(Enum):
     VMA = 'vma'
     SD = 'sd'  # standard deviation
     COVARIANCE = 'covariance'
-    SELL_BUY_RATIO = 'sell_buy_ratio'
+    NET_BUY_RATIO = 'net_buy_ratio'
     BID_ASK_RATIO = 'bid_ask_ratio'
     SD_STOP_LOSS = 'sd_stop_loss'
     INDICATOR_CHANGE_RATE = 'indicator_change_rate'

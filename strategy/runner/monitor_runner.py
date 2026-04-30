@@ -9,9 +9,9 @@ from shioaji.position import FuturePosition, StockPosition
 from strategy.runner.abs_strategy_runner import AbsStrategyRunner
 from strategy.strategies.abs_strategy import AbsStrategy
 from strategy.strategies.data import EntryReport
-from strategy.strategies.ma_stragegy import MaStrategy
-from strategy.strategies.trend_strategy import TrendStrategy
-from strategy.strategies.volume_strategy import VolumeStrategy
+from strategy.strategies.moving_average import MaStrategy
+from strategy.strategies.trend import TrendStrategy
+from strategy.strategies.volume import VolumeStrategy
 from strategy.tools.indicator_provider.indicator_facade import IndicatorFacade
 from tools.constants import DEFAULT_TIMEZONE
 from tools.plotter import plotter
@@ -70,7 +70,7 @@ class TMFStrategyRunner(AbsStrategyRunner):
                 self.indicator_facade.covariance_short,
             ],
             [
-                self.indicator_facade.sell_buy_ratio,
+                self.indicator_facade.net_buy_ratio_m,
                 self.indicator_facade.bid_ask_diff_ma
             ]
         ]

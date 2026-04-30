@@ -61,7 +61,7 @@ class SdStopLossStrategy(AbsStrategy):
         return (
                 self._donchian_breakthrough_h_s
                 and self._donchian_hh_accumulation_s > 3
-                and 2 > self._sell_buy_power > 1
+                and 2 > self._net_buy_power > 1
                 and self._donchian_hl_accumulation_s > 2
         )
 
@@ -69,7 +69,7 @@ class SdStopLossStrategy(AbsStrategy):
         return (
                 self._donchian_breakthrough_l_s
                 and self._donchian_ll_accumulation_s > 3
-                and -2 < self._sell_buy_power < -1
+                and -2 < self._net_buy_power < -1
                 and self._donchian_lh_accumulation_s > 2
         )
 

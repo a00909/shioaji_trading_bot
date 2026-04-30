@@ -2,13 +2,10 @@ from datetime import datetime, time
 
 from strategy.runner.tmf_strategy_runner import TMFStrategyRunner
 from strategy.tools.indicator_provider.dummy_indicator_provider import DummyIndicatorProvider
-from strategy.tools.indicator_provider.indicator_provider import IndicatorProvider
 from strategy.tools.kbar_indicators.kbar_indicator_center import KbarIndicatorCenter
 from strategy.tools.order_placer import OrderPlacer
 from tick_manager.history_tick_manager import HistoryTickManager
 from tools.app import App
-from tools.backtracking.dummy_account import DummyAccount
-from tools.backtracking.dummy_contract import DummyContract
 from tools.backtracking.dummy_rtm import DummyRealtimeTickManager
 from tools.backtracking.dummy_shioaji import DummyShioaji
 from tools.plotter import plotter
@@ -30,7 +27,7 @@ date list:
 active_time_ranges = [
     (time(8, 45), time(13, 45))
 ]
-dummy_rtm = DummyRealtimeTickManager(contract, htm, app.redis, '2025-08-07',active_time_ranges)
+dummy_rtm = DummyRealtimeTickManager(contract, htm, app.redis, '2025-12-12',active_time_ranges)
 dummy_api = DummyShioaji(htm, dummy_rtm, account)
 op = OrderPlacer(dummy_api, contract, dummy_api.foutopt_account)
 

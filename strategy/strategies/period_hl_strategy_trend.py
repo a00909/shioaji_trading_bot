@@ -52,7 +52,7 @@ class PeriodHLStrategyTrend(AbsStrategy):
                     self._donchian_breakthrough_h
                     and not self._donchian_breakthrough_l
                     and self._volume_ratio >= 0.5
-                    and not self._sell_buy_ratio < -0.2
+                    and not self._net_buy_ratio_m < -0.2
                     and self._ma_s > self._donchian_h_25
             ):
                 params = [
@@ -65,7 +65,7 @@ class PeriodHLStrategyTrend(AbsStrategy):
                     self._donchian_breakthrough_l
                     and not self._donchian_breakthrough_h
                     and self._volume_ratio >= 0.5
-                    and not self._sell_buy_ratio > 0.2
+                    and not self._net_buy_ratio_m > 0.2
                     and self._ma_s < self._donchian_l_25
             ):
                 params = [

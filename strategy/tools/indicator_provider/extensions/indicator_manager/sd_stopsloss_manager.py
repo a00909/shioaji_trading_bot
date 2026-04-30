@@ -7,7 +7,7 @@ from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type
 from strategy.tools.indicator_provider.extensions.data.sd_stop_loss import SdStopLoss
 from strategy.tools.indicator_provider.extensions.indicator_manager.abs_indicator_manager import AbsIndicatorManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.pma_manager import PMAManager
-from strategy.tools.indicator_provider.extensions.indicator_manager.sell_buy_ratio_manager import SellBuyRatioManager
+from strategy.tools.indicator_provider.extensions.indicator_manager.net_buy_ratio_manager import NetBuyRatioManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.standard_deviation_manager import \
     StandardDeviationManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.vma_manager import VMAManager
@@ -18,7 +18,7 @@ from redis.client import Redis
 from strategy.tools.indicator_provider.extensions.data.extensions.indicator_type import IndicatorType
 from strategy.tools.indicator_provider.extensions.data.sd_stop_loss import SdStopLoss
 from strategy.tools.indicator_provider.extensions.indicator_manager.abs_indicator_manager import AbsIndicatorManager
-from strategy.tools.indicator_provider.extensions.indicator_manager.sell_buy_ratio_manager import SellBuyRatioManager
+from strategy.tools.indicator_provider.extensions.indicator_manager.net_buy_ratio_manager import NetBuyRatioManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.standard_deviation_manager import \
     StandardDeviationManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.vma_manager import VMAManager
@@ -38,8 +38,8 @@ class SDStopLossManager(AbsIndicatorManager):
                  kbar_indicator_center: KbarIndicatorCenter,
                  iiva_length,
                  iiva_interval,
-                 sell_buy_ratio_manager,
-                 sell_buy_ratio_change_rate_length,
+                 net_buy_ratio_manager,
+                 net_buy_ratio_change_rate_length,
                  pma_manager: PMAManager
                  ):
         super().__init__(IndicatorType.SD_STOP_LOSS, sd_length, symbol, start_time, redis, rtm)
@@ -49,8 +49,8 @@ class SDStopLossManager(AbsIndicatorManager):
         self.kbar_indicator_center = kbar_indicator_center
         self.iiva_length = iiva_length
         self.iiva_interval = iiva_interval
-        self.sell_buy_ratio_manager: SellBuyRatioManager = sell_buy_ratio_manager
-        self.sell_buy_ratio_change_rate_length = sell_buy_ratio_change_rate_length
+        self.net_buy_ratio_manager: NetBuyRatioManager = net_buy_ratio_manager
+        self.net_buy_ratio_change_rate_length = net_buy_ratio_change_rate_length
         self.pma_manager = pma_manager
 
         self.now = None

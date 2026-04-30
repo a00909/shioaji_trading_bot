@@ -15,7 +15,7 @@ class HistoryTick(Base):
     __tablename__ = 'history_tick'
     # 基礎表格定義，不會直接儲存資料
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    ts: datetime = Column(DateTime(timezone=True), primary_key=True, index=True)
+    ts: datetime | Column = Column(DateTime(timezone=True), primary_key=True, index=True)
     symbol = Column(String, index=True)
     close = Column(Float, nullable=False)
     volume = Column(Integer, nullable=False)

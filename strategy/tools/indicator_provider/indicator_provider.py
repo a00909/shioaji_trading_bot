@@ -13,7 +13,7 @@ from strategy.tools.indicator_provider.extensions.indicator_manager.covariance_m
 from strategy.tools.indicator_provider.extensions.indicator_manager.donchian_manager import DonchianManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.pma_manager import PMAManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.sd_stopsloss_manager import SDStopLossManager
-from strategy.tools.indicator_provider.extensions.indicator_manager.sell_buy_ratio_manager import SellBuyRatioManager
+from strategy.tools.indicator_provider.extensions.indicator_manager.net_buy_ratio_manager import NetBuyRatioManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.standard_deviation_manager import \
     StandardDeviationManager
 from strategy.tools.indicator_provider.extensions.indicator_manager.vma_manager import VMAManager
@@ -180,8 +180,8 @@ class IndicatorProvider:
         im = self._get_or_new_indicator(key, CovarianceManager, params)
         return im.get()
 
-    def sell_buy_ratio(self, length, get_manager=False):
-        key = (IndicatorType.SELL_BUY_RATIO, length)
+    def net_buy_ratio(self, length, get_manager=False):
+        key = (IndicatorType.NET_BUY_RATIO, length)
         params = (
             length,
             self.rtm.symbol,
@@ -189,7 +189,7 @@ class IndicatorProvider:
             self.redis,
             self.rtm
         )
-        im = self._get_or_new_indicator(key, SellBuyRatioManager, params)
+        im = self._get_or_new_indicator(key, NetBuyRatioManager, params)
         if get_manager:
             return im
         return im.get()
@@ -218,14 +218,14 @@ class IndicatorProvider:
             pma_length,
             vma_length,
             vma_unit,
-            sell_buy_ratio_length,
-            sell_buy_ratio_change_rate_length,
+            net_buy_ratio_length,
+            net_buy_ratio_change_rate_length,
             iiva_length,
             iiva_interval=5,
     ):
         key = (
             IndicatorType.SD_STOP_LOSS,
-            f'{sd_length}_{vma_length}_{vma_unit}_{sell_buy_ratio_length}_{iiva_length}_{iiva_interval}'
+            f'{sd_length}_{vma_length}_{vma_unit}_{net_buy_ratio_length}_{iiva_length}_{iiva_interval}'
         )
 
         im = self._get_or_new_indicator(key)
@@ -233,7 +233,7 @@ class IndicatorProvider:
         if not im:
             sd_manager = self.standard_deviation(sd_length, get_manager=True)
             vma_manager = self.vma(vma_length, vma_unit, get_manager=True)
-            sell_buy_ratio_manager = self.sell_buy_ratio(sell_buy_ratio_length, get_manager=True)
+            net_buy_ratio_manager = self.net_buy_ratio(net_buy_ratio_length, get_manager=True)
             pma_manager = self.ma(pma_length,get_manager=True)
 
             if sd_manager and vma_manager:
@@ -245,8 +245,8 @@ class IndicatorProvider:
                     self.kbar_indicator_center,
                     iiva_length,
                     iiva_interval,
-                    sell_buy_ratio_manager,
-                    sell_buy_ratio_change_rate_length,
+                    net_buy_ratio_manager,
+                    net_buy_ratio_change_rate_length,
                     pma_manager
                 )
                 im = self._get_or_new_indicator(key, SDStopLossManager, params, level_idx=1)
@@ -288,8 +288,8 @@ class IndicatorProvider:
     #
     #     return im.get()
 
-    def sell_buy_ratio_change_rate(self, length, change_rate_length=None):
-        im = self.sell_buy_ratio(length, get_manager=True)
+    def net_buy_ratio_change_rate(self, length, change_rate_length=None):
+        im = self.net_buy_ratio(length, get_manager=True)
         if not change_rate_length:
             change_rate_length = length
         return im.change_rate(change_rate_length)
