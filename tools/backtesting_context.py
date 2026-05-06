@@ -18,3 +18,6 @@ class BacktestingContext:
 
     def iiva_lookup(self, ts):
         return self.iiva.get(ts.replace(second=0, microsecond=0), timedelta(days=30), 5)
+
+    def shut(self):
+        self.app.shut()

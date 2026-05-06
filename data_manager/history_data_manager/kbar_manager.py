@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from database.schema.kbar import KBar, KBarMemo
 from data_manager.history_data_manager.history_data_manager_base import HistoryDataManagerBase
 from tools.constants import DATE_FORMAT_DB_AND_SJ, EXP86400
+from tools.date_range_utils import group_dates_into_ranges, subtract_ranges
 from tools.kbar_utils import to_time_key
 from tools.utils import history_ts_to_datetime
 
@@ -79,6 +80,7 @@ class KBarManager(HistoryDataManagerBase[KBar, KBarMemo]):
                     cur = cur.replace(month=cur.month + 1, day=1)
 
         suc = self._commit_to_db_with_session(session, KBar.__tablename__, first_days, db_kbars, memos)
+
         return (suc, db_kbars) if suc else (suc, [])
 
     def _get_data_from_redis(self, symbol, start: date, end: date):
@@ -199,7 +201,7 @@ class KBarManager(HistoryDataManagerBase[KBar, KBarMemo]):
             results = pipe.execute()
             data = [KBar.from_string(s) for batch in results for _, s in batch.items()]
 
-        return self._group_dates_into_ranges(missing_dates), data
+        return group_dates_into_ranges(missing_dates), data
 
     def get_data(self, contract, start: str | date, end: str | date) -> list[KBar]:
         # todo: 評估從range改為列舉的方式
@@ -220,7 +222,11 @@ class KBarManager(HistoryDataManagerBase[KBar, KBarMemo]):
         api_data = []
         db_data = []
         with self.session_maker() as session:
-            missing_ranges_db = self._find_missing_ranges_db(session, symbol, start, end)
+            missing_dates = self._get_missing_dates(session, symbol, start, end)
+            missing_ranges_db = group_dates_into_ranges(missing_dates)
+            self._log(
+                f'All ranges: {[(self._dt_str(s), self._dt_str(t)) for s, t in missing_ranges_db]}'
+            )
 
             if missing_ranges_db:
                 suc, api_data = self._fetch_data_to_db_and_return_it(session, contract, missing_ranges_db)
@@ -234,7 +240,7 @@ class KBarManager(HistoryDataManagerBase[KBar, KBarMemo]):
             )
 
             if missing_ranges_redis:
-                missing_ranges_redis = self._subtract_ranges(missing_ranges_redis, missing_ranges_db)
+                missing_ranges_redis = subtract_ranges(missing_ranges_redis, missing_ranges_db)
                 db_data = self._get_data_from_db(session, symbol, missing_ranges_redis)
 
         if api_data:

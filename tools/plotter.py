@@ -5,6 +5,8 @@ from typing import Iterable
 import matplotlib.pyplot as plt
 
 from collections import defaultdict
+
+
 # import mplcyberpunk
 # plt.style.use('cyberpunk')
 # from qbstyles import mpl_style
@@ -29,8 +31,16 @@ class Plotter:
     def active(self):
         self.is_active = True
 
-    def add_points(self, key: str, point: tuple[datetime, float], point_only=False, chart_idx=0, point_text=None,
-                   right=True, down=True):
+    def add_points(
+            self,
+            key: str,
+            point: tuple[datetime, float],
+            point_only=False,
+            chart_idx=0,
+            point_text=None,
+            right=True,
+            down=True
+    ):
         """接收 key-value pair，key 為 str，value 為點 (list of tuples)
 
         Args:
@@ -58,6 +68,7 @@ class Plotter:
             self.point_pos[key].append((right, down))
             if point_text:
                 self.point_texts[key].append(point_text)
+
 
         self.data[key].append(point)  # 添加點到對應的 key
 
@@ -105,10 +116,14 @@ class Plotter:
                 linewidth = 0
                 markersize = 4
                 alpha = 0.7
+
+
             else:
                 linewidth = 0.9
                 markersize = 0
                 alpha = 0.7
+
+
 
             ax.plot(
                 x, y,
@@ -118,7 +133,7 @@ class Plotter:
                 linewidth=linewidth,
                 markersize=markersize,
                 alpha=alpha
-            )  # 繪製每組數據
+                )  # 繪製每組數據
 
         fig.tight_layout()  # 自動調整布局
         # fig.set_facecolor('#E8E8E8')

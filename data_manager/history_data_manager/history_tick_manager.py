@@ -4,6 +4,7 @@ from datetime import timedelta, time, date, datetime
 from functools import lru_cache
 
 from shioaji.constant import TicksQueryType
+from shioaji.contracts import Contract
 from shioaji.data import Ticks
 from sqlalchemy import select, union_all, literal
 from sqlalchemy.orm import Session, sessionmaker, aliased
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker, aliased
 from data_manager.history_data_manager.history_data_manager_base import HistoryDataManagerBase
 from database.schema.history_tick import HistoryTickMemo, HistoryTick
 from tools.constants import EXP86400
+from tools.date_range_utils import enumerate_dates_set_by_range
 from tools.utils import history_ts_to_datetime, is_in_time_ranges
 
 
@@ -29,14 +31,7 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
     def _redis_key_prefix(self):
         return 'history.tick'
 
-    def _get_memos_exists_by_dates(self, session, symbol: str, dates: list[date]):
-        stmt = select(HistoryTickMemo.date).where(
-            HistoryTickMemo.symbol == symbol,
-            HistoryTickMemo.date.in_(dates),
-        )
-        return self._get_existing_date_memos(session, stmt)
-
-    def _get_data_from_api(self, contract, start: str) -> Ticks:
+    def _get_data_from_api(self, contract: Contract, start: str) -> Ticks:
         ticks = self.api.ticks(
             contract,
             start,
@@ -56,18 +51,18 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
 
         db_data = []
         for day_data, dt in zip(api_data, fetch_dates):
-            _, db_ticks = self._set_data_to_db(session, day_data, contract.symbol, dt)
+            db_ticks = self._set_data_to_db(session, day_data, contract.symbol, dt)
             db_data.append(DailyTicks(dt, db_ticks))
         return db_data
 
     def _get_data_from_db(self, session, symbol, start: date) -> tuple[bool, DailyTicks]:
-        has_memo = self._get_memos_exists_by_dates(
+        existing: list = self._get_exising_dates_memo_by_dates(
             session,
             symbol,
-            [start]
-        )[0]
+            dates=[start]
+        )
 
-        if has_memo:
+        if existing:
             stmt = self._get_data_from_db_stmt(symbol, start)
             results = session.execute(stmt).scalars().all()
 
@@ -113,6 +108,14 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
         )
 
     def _set_data_to_db(self, session, data: Ticks, symbol, start: date):
+        """
+        session will be commited in the method
+        :param session:
+        :param data:
+        :param symbol:
+        :param start:
+        :return:
+        """
         ticks_len = len(data.ts)
 
         new_ticks = []
@@ -133,8 +136,8 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
             symbol=symbol
         )
 
-        suc = self._commit_to_db_with_session(session, HistoryTick.__tablename__, [start], new_ticks, [memo])
-        return (suc, new_ticks) if suc else (suc, [])
+        self._commit_to_db_with_session(session, HistoryTick.__tablename__, [start], new_ticks, [memo])
+        return new_ticks
 
     def _get_data_from_redis(self, symbol, dt: date) -> tuple[bool, DailyTicks]:
         key = self._redis_key(symbol, dt)
@@ -194,7 +197,7 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
 
     def _set_data_to_redis(self, symbol, data: list[DailyTicks]):
         if not data:
-            return [1]
+            raise Exception('no data to set to redis.')
 
         pipe = self.redis.pipeline()
 
@@ -210,30 +213,24 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
 
             pipe.set(self._memo_key(key), self.redis_memo_default_value, ex=EXP86400)
 
-        return pipe.execute(True)
+        pipe.execute(True)
 
-    def _prepare_data(self, session, contract, start: date) -> tuple[bool, DailyTicks]:
+    def _prepare_data(self, session, contract: Contract, start: date) -> tuple[bool, DailyTicks]:
         symbol = contract.symbol
 
         self._log('Fetching..')
         ticks = self._get_data_from_api(contract, self._dt_str(start))
 
         self._log('Set ticks to db..')
-        suc, history_ticks = self._set_data_to_db(session, ticks, symbol, start)
-
-        if not suc:
-            return False, DailyTicks()
+        history_ticks = self._set_data_to_db(session, ticks, symbol, start)
 
         self._log('Set ticks to redis..')
         data = DailyTicks(start, history_ticks)
-        suc = self._set_data_to_redis(symbol, [data])
-
-        if not suc:
-            return False, DailyTicks()
+        self._set_data_to_redis(symbol, [data])
 
         return True, data
 
-    def _get_data(self, contract, dt: date) -> list[HistoryTick]:
+    def _get_data(self, contract: Contract, dt: date) -> list[HistoryTick]:
         self._date_check(dt)
         symbol = contract.symbol
 
@@ -258,7 +255,8 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
                 return []
             return data.ticks
 
-    def get_data(self, contract, str_date: str, time_ranges: list[tuple[time, time]] = None) -> list[HistoryTick]:
+    def get_data(self, contract: Contract, str_date: str, time_ranges: list[tuple[time, time]] = None) -> list[
+        HistoryTick]:
         dt = self._dt(str_date).date()
         data = self._get_data(contract, dt)
         if time_ranges:
@@ -269,14 +267,30 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
             return filtered
         return data
 
-    def get_data_batch(self, contract, str_start: str, str_end: str) -> list[DailyTicks]:
-        self._date_check(str_start, str_end)
+    def get_data_batch(
+            self,
+            contract: Contract,
+            str_start: str = None,
+            str_end: str = None,
+            dates: list[date] = None
+    ) -> list[DailyTicks]:
+
+        if str_start and str_end:
+            self._date_check(str_start, str_end)
+            start = self._dt(str_start).date()
+            end = self._dt(str_end).date()
+            all_dt: set[date] = enumerate_dates_set_by_range(start, end)
+            dates = list(all_dt)
+
+        elif dates:
+            self._date_check(dates[0], dates[-1])
+            all_dt: set[date] = set(dates)
+        else:
+            raise Exception('no range or dates given.')
+
         symbol = contract.symbol
 
         # type check (if needed?)
-        start = self._dt(str_start).date()
-        end = self._dt(str_end).date()
-        enum_all_dt: set[date] = self._enumerate_dates_by_range(start, end)
 
         api_data = []
         db_data = []
@@ -284,13 +298,13 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
 
         # check db missing (fetch if missing)
         with self.session_maker() as session:
-            list_db_missing_dt: list[date] = self._get_missing_dates_by_range(session, symbol, start, end)
+            list_db_missing_dt: list[date] = self._get_missing_dates(session, symbol, dates=dates)
             if list_db_missing_dt:
                 api_data = self._fetch_data_to_db_and_return_it(session, contract, list_db_missing_dt)
                 assert len(list_db_missing_dt) == len(api_data)
 
             # check redis missing (query db if missing)
-            list_redis_check_dates: list[date] = list(enum_all_dt - set(list_db_missing_dt))
+            list_redis_check_dates: list[date] = list(all_dt - set(list_db_missing_dt))
             list_redis_check_dates.sort()
             list_redis_missing, redis_data = self._get_missing_dates_and_existing_data_in_redis(
                 symbol,
