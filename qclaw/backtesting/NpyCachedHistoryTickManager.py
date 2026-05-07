@@ -42,12 +42,6 @@ class TickSlice:
         )
 
 
-@dataclass
-class DailyTickSlice:
-    date: date
-    tick_slice: TickSlice
-
-
 class NpyCachedHistoryTickManager:
     def __init__(self, npy_cache_manager: NpyCacheManager, htm: HistoryTickManager):
         self.npy_cache = npy_cache_manager
@@ -132,7 +126,7 @@ class NpyCachedHistoryTickManager:
         self.npy_cache.set(self._key(symbol, dt, "bid_volumes"), slice_.bid_volumes)
         self.npy_cache.set(self._key(symbol, dt, "ask_volumes"), slice_.ask_volumes)
 
-    def get(self, contract, start, end) -> TickSlice:
+    def get(self, contract, start, end) -> TickSlice | None:
         """Get tick data for date range.
 
         Parameters
@@ -177,18 +171,22 @@ class NpyCachedHistoryTickManager:
 
         results = []
         for dt in dates:
-            if dt in date_to_npy_slice and date_to_npy_slice[dt]:
-                results.append(date_to_npy_slice[dt])
+            if dt in date_to_npy_slice:
+                if date_to_npy_slice[dt]:
+                    results.append(date_to_npy_slice[dt])
+                else:
+                    pass
             elif dt in date_to_history_ticks:
                 ticks = date_to_history_ticks[dt]
                 if ticks:
                     slice_ = self._build_tick_slice(ticks)
                     results.append(slice_)
                     self._save_to_npy(symbol, dt, slice_)
-
                 else:
                     self.npy_cache.mark_empty(self._key(symbol, dt, "times"))
             else:
                 raise Exception(f"neither in npy cache nor history ticks with date {dt}.")
 
+        if not results:
+            return None
         return TickSlice.merge_slices(results)
