@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
+from enum import StrEnum
 from functools import lru_cache
 from typing import Optional
 
@@ -10,6 +11,23 @@ from qclaw.backtesting.npy_cache import NpyCacheManager
 import numpy as np
 
 from tools.date_range_utils import enumerate_dates_set_by_range
+
+
+class TickField(StrEnum):
+    """Npy cache field names — single source of truth."""
+    TIMES = "times"
+    CLOSES = "closes"
+    VOLUMES = "volumes"
+    TICK_TYPES = "tick_types"
+    BID_PRICES = "bid_prices"
+    ASK_PRICES = "ask_prices"
+    BID_VOLUMES = "bid_volumes"
+    ASK_VOLUMES = "ask_volumes"
+
+    @classmethod
+    def from_dataclass(cls, slice_: 'TickSlice') -> dict['TickField', np.ndarray]:
+        """Return field→array dict from a TickSlice, matching enum order."""
+        return {f: getattr(slice_, f) for f in cls}
 
 
 @dataclass
@@ -26,7 +44,6 @@ class TickSlice:
 
     @staticmethod
     def merge_slices(slices: list['TickSlice']) -> 'TickSlice':
-        """合併多個 TickSlice 物件，日期以最後一個為代表或設為 None"""
         if not slices:
             raise ValueError("The slice list is empty.")
 
@@ -49,10 +66,10 @@ class NpyCachedHistoryTickManager:
 
     @staticmethod
     @lru_cache(maxsize=None)
-    def _key(symbol: str, dt: date, field: str) -> str:
+    def _key(symbol: str, dt: date, field: TickField) -> str:
         """Generate cache key: symbol.tick.date.field"""
         dt_str = dt.strftime("%Y-%m-%d")
-        return f"{symbol}.tick.{dt_str}.{field}"
+        return f"{symbol}.tick.{dt_str}.{field}"  # StrEnum auto-converts to str
 
     @staticmethod
     def _build_tick_slice(ticks: list[HistoryTick]) -> TickSlice:
@@ -83,30 +100,12 @@ class NpyCachedHistoryTickManager:
 
     def _load_from_npy(self, symbol: str, dt: date) -> Optional[TickSlice]:
         """Load TickSlice from npy cache. Returns None if not cached."""
-        # Check first field to see if cache hit/miss
-        time_key = self._key(symbol, dt, "times")
+        time_key = self._key(symbol, dt, TickField.TIMES)
         cache_state = self.npy_cache.is_cached(time_key)
 
         if cache_state == "hit":
-            # Load all fields from npy
-            times = self.npy_cache.get(self._key(symbol, dt, "times"))
-            closes = self.npy_cache.get(self._key(symbol, dt, "closes"))
-            volumes = self.npy_cache.get(self._key(symbol, dt, "volumes"))
-            tick_types = self.npy_cache.get(self._key(symbol, dt, "tick_types"))
-            bid_prices = self.npy_cache.get(self._key(symbol, dt, "bid_prices"))
-            ask_prices = self.npy_cache.get(self._key(symbol, dt, "ask_prices"))
-            bid_volumes = self.npy_cache.get(self._key(symbol, dt, "bid_volumes"))
-            ask_volumes = self.npy_cache.get(self._key(symbol, dt, "ask_volumes"))
-
             return TickSlice(
-                times=times,
-                closes=closes,
-                volumes=volumes,
-                tick_types=tick_types,
-                bid_prices=bid_prices,
-                ask_prices=ask_prices,
-                bid_volumes=bid_volumes,
-                ask_volumes=ask_volumes,
+                **{f: self.npy_cache.get(self._key(symbol, dt, f)) for f in TickField}
             )
         elif cache_state == "empty":
             # Confirmed no data for this date
@@ -117,14 +116,8 @@ class NpyCachedHistoryTickManager:
 
     def _save_to_npy(self, symbol: str, dt: date, slice_: TickSlice) -> None:
         """Save TickSlice to npy cache (one file per field per day)."""
-        self.npy_cache.set(self._key(symbol, dt, "times"), slice_.times)
-        self.npy_cache.set(self._key(symbol, dt, "closes"), slice_.closes)
-        self.npy_cache.set(self._key(symbol, dt, "volumes"), slice_.volumes)
-        self.npy_cache.set(self._key(symbol, dt, "tick_types"), slice_.tick_types)
-        self.npy_cache.set(self._key(symbol, dt, "bid_prices"), slice_.bid_prices)
-        self.npy_cache.set(self._key(symbol, dt, "ask_prices"), slice_.ask_prices)
-        self.npy_cache.set(self._key(symbol, dt, "bid_volumes"), slice_.bid_volumes)
-        self.npy_cache.set(self._key(symbol, dt, "ask_volumes"), slice_.ask_volumes)
+        for f, arr in TickField.from_dataclass(slice_).items():
+            self.npy_cache.set(self._key(symbol, dt, f), arr)
 
     def get(self, contract, start, end) -> TickSlice | None:
         """Get tick data for date range.
@@ -157,25 +150,21 @@ class NpyCachedHistoryTickManager:
                 date_to_npy_slice[dt] = slice_
                 continue
 
-            # Check if confirmed empty
-            time_key = self._key(symbol, dt, "times")
+            time_key = self._key(symbol, dt, TickField.TIMES)
             if self.npy_cache.has_empty(time_key):
                 date_to_npy_slice[dt] = None
                 continue
 
             missed_dates.append(dt)
 
-        # Fetch from HTM, cache result
         daily_ticks_list: list[DailyTicks] = self.htm.get_data_batch(contract, dates=missed_dates)
-        date_to_history_ticks = {daily_ticks.date: daily_ticks.ticks for daily_ticks in daily_ticks_list}
+        date_to_history_ticks = {d.date: d.ticks for d in daily_ticks_list}
 
         results = []
         for dt in dates:
             if dt in date_to_npy_slice:
                 if date_to_npy_slice[dt]:
                     results.append(date_to_npy_slice[dt])
-                else:
-                    pass
             elif dt in date_to_history_ticks:
                 ticks = date_to_history_ticks[dt]
                 if ticks:
@@ -183,7 +172,7 @@ class NpyCachedHistoryTickManager:
                     results.append(slice_)
                     self._save_to_npy(symbol, dt, slice_)
                 else:
-                    self.npy_cache.mark_empty(self._key(symbol, dt, "times"))
+                    self.npy_cache.mark_empty(self._key(symbol, dt, TickField.TIMES))
             else:
                 raise Exception(f"neither in npy cache nor history ticks with date {dt}.")
 
