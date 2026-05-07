@@ -6,7 +6,6 @@ from database.schema import Base
 
 __all__ = ['KBar', 'KBarMemo']
 
-
 from mixins.datetime_comparable_mixin import DatetimeComparableMixin
 
 from tools.constants import DEFAULT_TIMEZONE
@@ -19,7 +18,7 @@ class KBar(Base, DatetimeComparableMixin):
     # 基礎表格定義，不會直接儲存資料
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     symbol = Column(String, index=True)
-    ts = Column(DateTime(timezone=True), primary_key=True, index=True)
+    ts: datetime | Column = Column(DateTime(timezone=True), primary_key=True, index=True)
     open = Column(Float, nullable=False)
     high = Column(Float, nullable=False)
     low = Column(Float, nullable=False)
