@@ -6,7 +6,7 @@ from typing import Optional
 
 from data_manager.history_data_manager.history_tick_manager import HistoryTickManager, DailyTicks
 from database.schema.history_tick import HistoryTick
-from qclaw.backtesting.npy_cache import NpyCacheManager
+from qclaw.backtesting.npy_cache import CacheState, NpyCacheManager
 
 import numpy as np
 
@@ -98,21 +98,16 @@ class NpyCachedHistoryTickManager:
             ),
         )
 
-    def _load_from_npy(self, symbol: str, dt: date) -> Optional[TickSlice]:
+    def _load_from_npy(self, symbol: str, dt: date) -> tuple[CacheState, Optional[TickSlice]]:
         """Load TickSlice from npy cache. Returns None if not cached."""
         time_key = self._key(symbol, dt, TickField.TIMES)
         cache_state = self.npy_cache.is_cached(time_key)
 
-        if cache_state == "hit":
-            return TickSlice(
+        if cache_state == CacheState.HIT:
+            return cache_state, TickSlice(
                 **{f: self.npy_cache.get(self._key(symbol, dt, f)) for f in TickField}
             )
-        elif cache_state == "empty":
-            # Confirmed no data for this date
-            return None
-        else:
-            # Cache miss - need to fetch from HTM
-            return None
+        return cache_state, None
 
     def _save_to_npy(self, symbol: str, dt: date, slice_: TickSlice) -> None:
         """Save TickSlice to npy cache (one file per field per day)."""
@@ -145,17 +140,12 @@ class NpyCachedHistoryTickManager:
         missed_dates = []
         for dt in dates:
             # Try npy cache first
-            slice_ = self._load_from_npy(symbol, dt)
-            if slice_ is not None:
+            cache_state, slice_ = self._load_from_npy(symbol, dt)
+
+            if cache_state==CacheState.MISS:
+                missed_dates.append(dt)
+            else:
                 date_to_npy_slice[dt] = slice_
-                continue
-
-            time_key = self._key(symbol, dt, TickField.TIMES)
-            if self.npy_cache.has_empty(time_key):
-                date_to_npy_slice[dt] = None
-                continue
-
-            missed_dates.append(dt)
 
         daily_ticks_list: list[DailyTicks] = self.htm.get_data_batch(contract, dates=missed_dates)
         date_to_history_ticks = {d.date: d.ticks for d in daily_ticks_list}

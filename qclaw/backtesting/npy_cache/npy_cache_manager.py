@@ -22,14 +22,18 @@ Wildcard support (keys / delete):
     "tmf.*.2025-11-11.time"  → time across all categories
     "tmf.**"                 → everything under tmf/ (globstar)
 """
-
-from __future__ import annotations
-
 import fnmatch
+from enum import StrEnum
 from pathlib import Path
-from typing import Literal
 
 import numpy as np
+
+
+class CacheState(StrEnum):
+    """Three-state cache result."""
+    HIT = "hit"
+    EMPTY = "empty"
+    MISS = "miss"
 
 
 class NpyCacheManager:
@@ -112,13 +116,13 @@ class NpyCacheManager:
         """True iff .empty marker exists (confirmed no data)."""
         return self._empty_path(key).is_file()
 
-    def is_cached(self, key: str) -> Literal["hit", "empty", "miss"]:
+    def is_cached(self, key: str) -> CacheState:
         """Three-state check: hit / empty / miss."""
         if self.exists(key):
-            return "hit"
+            return CacheState.HIT
         if self.has_empty(key):
-            return "empty"
-        return "miss"
+            return CacheState.EMPTY
+        return CacheState.MISS
 
     # ── Write ──────────────────────────────────────────────────────────────
 
