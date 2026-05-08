@@ -49,10 +49,7 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
         ]
         api_data: list[Ticks] = [task.result() for task in tasks]
 
-        db_data = []
-        for day_data, dt in zip(api_data, fetch_dates):
-            db_ticks = self._set_data_to_db(session, day_data, contract.symbol, dt)
-            db_data.append(DailyTicks(dt, db_ticks))
+        db_data = self._set_data_to_db_batch(session, contract.symbol, zip(api_data, fetch_dates))
         return db_data
 
     def _get_data_from_db(self, session, symbol, start: date) -> tuple[bool, DailyTicks]:
@@ -106,6 +103,36 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
             [DailyTicks(i[0], i[1]) for i in organized_dict.items()],
             key=lambda x: x.date
         )
+
+    def _set_data_to_db_batch(self, session, symbol, daily_data: list[tuple[date, Ticks]]):
+        new_ticks = []
+        memos = []
+        result: list[DailyTicks] = []
+        dates = []
+
+        for dt, ticks in daily_data:
+            dates.append(dt)
+            ticks_len = len(ticks.ts)
+            for i in range(ticks_len):
+                new_ticks.append(HistoryTick(
+                    ts=history_ts_to_datetime(ticks.ts[i]),
+                    symbol=symbol,
+                    close=ticks.close[i],
+                    volume=ticks.volume[i],
+                    bid_price=ticks.bid_price[i],
+                    bid_volume=ticks.bid_volume[i],
+                    ask_price=ticks.ask_price[i],
+                    ask_volume=ticks.ask_volume[i],
+                    tick_type=ticks.tick_type[i],
+                ))
+            result.append(DailyTicks(dt, new_ticks))
+            memos.append(HistoryTickMemo(
+                date=dt,
+                symbol=symbol
+            ))
+
+        self._commit_to_db_with_session(session, HistoryTick.__tablename__, dates, new_ticks, memos)
+        return result
 
     def _set_data_to_db(self, session, data: Ticks, symbol, start: date):
         """

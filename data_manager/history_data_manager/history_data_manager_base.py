@@ -5,6 +5,7 @@ from datetime import datetime, date
 from functools import lru_cache
 from typing import get_args, Type, Protocol
 
+from dateutil.relativedelta import relativedelta
 from redis import Redis
 from shioaji import Shioaji
 from sqlalchemy import text, select, Column
@@ -30,6 +31,20 @@ class HistoryDataManagerBase[THistoryData:HistoryDataProtocol, TMemo:MemoProtoco
     data_type: Type[THistoryData]
     memo_type: Type[TMemo]
     redis_memo_default_value = 0
+
+    _create_partition_stmt_template = """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = '{1}') THEN
+                EXECUTE format('
+                    CREATE TABLE %I PARTITION OF {0} FOR VALUES FROM (%L) TO (%L)',
+                    '{1}', 
+                    '{2}', 
+                    '{3}'
+                );
+            END IF;
+        END $$;
+        """
 
     def __init__(self, api, redis, session_maker, log_on=True):
         self.api: Shioaji = api
@@ -65,41 +80,34 @@ class HistoryDataManagerBase[THistoryData:HistoryDataProtocol, TMemo:MemoProtoco
     def _memo_key(redis_key):
         return f'memo.{redis_key}'
 
-    def _create_partition_table(self, session: Session, _date: str | date, table_name: str):
-        if isinstance(_date, str):
-            _date = self._dt(_date)
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _create_partition_table_stmt(table_name, start, end):
+        partition_name = HistoryDataManagerBase._partition_name(table_name, start)
+        return HistoryDataManagerBase._create_partition_stmt_template.format(table_name, partition_name, start, end)
 
-        partition_name = f'{table_name}_{_date.strftime("%Y%m")}'
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _partition_name(table_name, dt: date):
+        return f'{table_name}_{dt.strftime("%Y%m")}'
 
-        start_date: date = _date.replace(day=1)  # 当前月份的第一天
+    @staticmethod
+    def _create_partition_table_2(session, table_name, dates: list[date]):
+        firsts = set()  # 放每月一號
 
-        year = _date.year
-        month = _date.month
+        for d in dates:
+            firsts.add(d.replace(day=1))
+            if d.day == 1:
+                firsts.add(d - relativedelta(months=1))
 
-        if month < 12:
-            end_date = start_date.replace(month=month + 1)  # 下个月的第一天
-        else:
-            end_date = start_date.replace(year=year + 1, month=1)
+        for fst in firsts:
+            stmt = HistoryDataManagerBase._create_partition_table_stmt(table_name, fst, fst + relativedelta(months=1))
+            session.execute(text(stmt))
 
-        sql = f"""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = '{partition_name}') THEN
-                    EXECUTE format('
-                        CREATE TABLE %I PARTITION OF {table_name} FOR VALUES FROM (%L) TO (%L)',
-                        '{partition_name}', 
-                        '{self._dt_str(start_date)}', 
-                        '{self._dt_str(end_date)}'
-                    );
-                END IF;
-            END $$;
-            """
-        session.execute(text(sql))
-
-    def _commit_to_db_with_session(self, session, table_name, dates: list, data: list, memos: list):
+    @staticmethod
+    def _commit_to_db_with_session(session, table_name, dates: list, data: list, memos: list):
         try:
-            for _date in dates:
-                self._create_partition_table(session, _date, table_name)
+            HistoryDataManagerBase._create_partition_table_2(session, table_name, dates)
             session.add_all(data)
             session.add_all(memos)
             session.commit()
@@ -112,7 +120,7 @@ class HistoryDataManagerBase[THistoryData:HistoryDataProtocol, TMemo:MemoProtoco
 
     def _commit_to_db(self, table_name, dates: list, data: list, memos: list):
         with self.session_maker() as session:
-            self._commit_to_db_with_session(session, table_name, dates, data, memos)
+            HistoryDataManagerBase._commit_to_db_with_session(session, table_name, dates, data, memos)
 
     def _date_check(self, start: str | date, end: str | date = None):
         start = self._dt(start).date() if isinstance(start, str) else start
@@ -165,7 +173,6 @@ class HistoryDataManagerBase[THistoryData:HistoryDataProtocol, TMemo:MemoProtoco
         return stmt
 
     @staticmethod
-    @lru_cache(maxsize=128)
     def _get_existing_date_memos_by_dates_stmt(memo_type: Type[TMemo], symbol, dates: list[date]):
         stmt = select(memo_type.date).where(
             memo_type.symbol == symbol,
