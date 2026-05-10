@@ -56,8 +56,11 @@ class NpyCacheManager:
     ['tmf.tick.2025-11-11.time']
     """
 
-    def __init__(self, root: str | Path = "caches") -> None:
-        self.root = Path(root).resolve()
+    def __init__(self, root: str | Path = None) -> None:
+        if root:
+            self.root = Path(root).resolve()
+        else:
+            self.root = Path(__file__).resolve().parent / "caches"
         self.root.mkdir(parents=True, exist_ok=True)
 
     # ── Key ↔ Path ─────────────────────────────────────────────────────────

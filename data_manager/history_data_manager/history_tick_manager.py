@@ -2,6 +2,7 @@ import heapq
 from dataclasses import dataclass, field
 from datetime import timedelta, time, date, datetime
 from functools import lru_cache
+from typing import Any
 
 from shioaji.constant import TicksQueryType
 from shioaji.contracts import Contract
@@ -49,7 +50,7 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
         ]
         api_data: list[Ticks] = [task.result() for task in tasks]
 
-        db_data = self._set_data_to_db_batch(session, contract.symbol, zip(api_data, fetch_dates))
+        db_data = self._set_data_to_db_batch(session, contract.symbol, zip(fetch_dates, api_data))
         return db_data
 
     def _get_data_from_db(self, session, symbol, start: date) -> tuple[bool, DailyTicks]:
@@ -105,33 +106,41 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
         )
 
     def _set_data_to_db_batch(self, session, symbol, daily_data: list[tuple[date, Ticks]]):
-        new_ticks = []
-        memos = []
-        result: list[DailyTicks] = []
-        dates = []
+        ticks_lens = [len(ticks.ts) for _, ticks in daily_data]
+        num_all_ticks = sum(ticks_lens)
+        num_all_dates = len(daily_data)
 
-        for dt, ticks in daily_data:
-            dates.append(dt)
-            ticks_len = len(ticks.ts)
-            for i in range(ticks_len):
-                new_ticks.append(HistoryTick(
-                    ts=history_ts_to_datetime(ticks.ts[i]),
+        all_ticks: list[Any] = [None] * num_all_ticks
+        memos: list[Any] = [None] * num_all_dates
+        result: list[DailyTicks | None] = [None] * num_all_dates
+        dates: list[Any] = [None] * num_all_dates
+
+        for i in range(num_all_dates):
+            dates[i] = daily_data[i][0]
+            ticks_len = ticks_lens[i]
+            day_ticks: list[Any] = [None] * ticks_len
+            ticks = daily_data[i][1]
+
+            for j in range(ticks_len):
+                day_ticks[j] = HistoryTick(
+                    ts=history_ts_to_datetime(ticks.ts[j]),
                     symbol=symbol,
-                    close=ticks.close[i],
-                    volume=ticks.volume[i],
-                    bid_price=ticks.bid_price[i],
-                    bid_volume=ticks.bid_volume[i],
-                    ask_price=ticks.ask_price[i],
-                    ask_volume=ticks.ask_volume[i],
-                    tick_type=ticks.tick_type[i],
-                ))
-            result.append(DailyTicks(dt, new_ticks))
+                    close=ticks.close[j],
+                    volume=ticks.volume[j],
+                    bid_price=ticks.bid_price[j],
+                    bid_volume=ticks.bid_volume[j],
+                    ask_price=ticks.ask_price[j],
+                    ask_volume=ticks.ask_volume[j],
+                    tick_type=ticks.tick_type[j],
+                )
+            result[i] = DailyTicks(dates[i], day_ticks)
+            all_ticks.extend(day_ticks)
             memos.append(HistoryTickMemo(
-                date=dt,
+                date=dates[i],
                 symbol=symbol
             ))
 
-        self._commit_to_db_with_session(session, HistoryTick.__tablename__, dates, new_ticks, memos)
+        self._commit_to_db_with_session(session, HistoryTick.__tablename__, dates, all_ticks, memos)
         return result
 
     def _set_data_to_db(self, session, data: Ticks, symbol, start: date):
@@ -309,7 +318,9 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
             all_dt: set[date] = enumerate_dates_set_by_range(start, end)
             dates = list(all_dt)
 
-        elif dates:
+        elif dates is not None:
+            if not dates:
+                return []
             self._date_check(dates[0], dates[-1])
             all_dt: set[date] = set(dates)
         else:
