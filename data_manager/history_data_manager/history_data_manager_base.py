@@ -173,7 +173,7 @@ class HistoryDataManagerBase[THistoryData:HistoryDataProtocol, TMemo:MemoProtoco
         return stmt
 
     @staticmethod
-    def _get_existing_date_memos_by_dates_stmt(memo_type: Type[TMemo], symbol, dates: list[date]):
+    def _get_existing_date_memos_by_dates_stmt(memo_type: Type[TMemo], symbol, dates: list[date] | set[date]):
         stmt = select(memo_type.date).where(
             memo_type.symbol == symbol,
             memo_type.date.in_(dates),

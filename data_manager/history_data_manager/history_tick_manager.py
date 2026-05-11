@@ -50,7 +50,7 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
         ]
         api_data: list[Ticks] = [task.result() for task in tasks]
 
-        db_data = self._set_data_to_db_batch(session, contract.symbol, zip(fetch_dates, api_data))
+        db_data = self._set_data_to_db_batch(session, contract.symbol, list(zip(fetch_dates, api_data)))
         return db_data
 
     def _get_data_from_db(self, session, symbol, start: date) -> tuple[bool, DailyTicks]:
@@ -115,6 +115,7 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
         result: list[DailyTicks | None] = [None] * num_all_dates
         dates: list[Any] = [None] * num_all_dates
 
+        all_ticks_count = 0
         for i in range(num_all_dates):
             dates[i] = daily_data[i][0]
             ticks_len = ticks_lens[i]
@@ -122,7 +123,7 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
             ticks = daily_data[i][1]
 
             for j in range(ticks_len):
-                day_ticks[j] = HistoryTick(
+                new_tick = HistoryTick(
                     ts=history_ts_to_datetime(ticks.ts[j]),
                     symbol=symbol,
                     close=ticks.close[j],
@@ -133,12 +134,16 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
                     ask_volume=ticks.ask_volume[j],
                     tick_type=ticks.tick_type[j],
                 )
+                day_ticks[j] = new_tick
+                all_ticks[all_ticks_count] = new_tick
+                all_ticks_count += 1
+
             result[i] = DailyTicks(dates[i], day_ticks)
-            all_ticks.extend(day_ticks)
-            memos.append(HistoryTickMemo(
+
+            memos[i] = HistoryTickMemo(
                 date=dates[i],
                 symbol=symbol
-            ))
+            )
 
         self._commit_to_db_with_session(session, HistoryTick.__tablename__, dates, all_ticks, memos)
         return result
@@ -321,7 +326,6 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
         elif dates is not None:
             if not dates:
                 return []
-            self._date_check(dates[0], dates[-1])
             all_dt: set[date] = set(dates)
         else:
             raise Exception('no range or dates given.')

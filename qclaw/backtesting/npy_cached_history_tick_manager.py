@@ -155,7 +155,7 @@ class NpyCachedHistoryTickManager:
         else:
             date_to_history_ticks = []
 
-        for dt in dates:
+        for dt in sorted(list(dates)): # 需依照順序
             if dt in date_to_npy_slice:
                 if date_to_npy_slice[dt]:
                     results.append(date_to_npy_slice[dt])
