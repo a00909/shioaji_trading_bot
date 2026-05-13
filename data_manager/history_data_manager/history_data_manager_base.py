@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime, date
 from functools import lru_cache
-from typing import get_args, Type, Protocol
+from typing import get_args, Type, Protocol, Iterable
 
 from dateutil.relativedelta import relativedelta
 from redis import Redis
@@ -92,7 +92,7 @@ class HistoryDataManagerBase[THistoryData:HistoryDataProtocol, TMemo:MemoProtoco
         return f'{table_name}_{dt.strftime("%Y%m")}'
 
     @staticmethod
-    def _create_partition_table_2(session, table_name, dates: list[date]):
+    def _create_partition_table_2(session, table_name, dates: Iterable[date]):
         firsts = set()  # 放每月一號
 
         for d in dates:
@@ -105,7 +105,7 @@ class HistoryDataManagerBase[THistoryData:HistoryDataProtocol, TMemo:MemoProtoco
             session.execute(text(stmt))
 
     @staticmethod
-    def _commit_to_db_with_session(session, table_name, dates: list, data: list, memos: list):
+    def _commit_to_db_with_session(session, table_name, dates: Iterable[date], data: list, memos: list):
         try:
             HistoryDataManagerBase._create_partition_table_2(session, table_name, dates)
             session.add_all(data)
@@ -191,20 +191,33 @@ class HistoryDataManagerBase[THistoryData:HistoryDataProtocol, TMemo:MemoProtoco
             symbol,
             start: date = None,
             end: date = None,
-            dates: list[date] = None
-    ) -> list[date]:
+            dates: set[date] = None,
+            return_set=False
+    ) -> list[date] | set[date]:
+        """
+        returns sorted list of missing dates as default.
+        :param session:
+        :param symbol:
+        :param start:
+        :param end:
+        :param dates:
+        :param return_set:
+        :return:
+        """
         if start and end:
             stmt = self._get_existing_date_memos_by_range_stmt(self.memo_type, symbol, start, end)
-            all_dates_set = enumerate_dates_set_by_range(start, end)
+            dates = enumerate_dates_set_by_range(start, end)
         elif dates:
             stmt = self._get_existing_date_memos_by_dates_stmt(self.memo_type, symbol, dates)
-            all_dates_set = set(dates)
         else:
             raise Exception('no range or dates given.')
 
         memo_dates = session.execute(stmt).scalars().all()
         existing_dates_set = set(memo_dates)
 
-        missing_dates = list(all_dates_set - existing_dates_set)
-        missing_dates.sort()
-        return missing_dates
+        missing_dates = dates - existing_dates_set
+
+        if return_set:
+            return missing_dates
+        else:
+            return sorted(list(missing_dates))

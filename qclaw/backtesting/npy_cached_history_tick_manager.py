@@ -137,20 +137,20 @@ class NpyCachedHistoryTickManager:
 
         date_to_npy_slice: dict[date, TickSlice | None] = {}
 
-        missed_dates = []
+        missed_dates = set()
         for dt in dates:
             # Try npy cache first
             cache_state, slice_ = self._load_from_npy(symbol, dt)
 
             if cache_state == CacheState.MISS:
-                missed_dates.append(dt)
+                missed_dates.add(dt)
             else:
                 date_to_npy_slice[dt] = slice_
 
         results = []
 
         if missed_dates:
-            daily_ticks_list: list[DailyTicks] = self.htm.get_data_batch(contract, dates=missed_dates)
+            daily_ticks_list: list[DailyTicks] = self.htm.get_data_batch(contract, check_dates=missed_dates)
             date_to_history_ticks = {d.date: d.ticks for d in daily_ticks_list}
         else:
             date_to_history_ticks = []

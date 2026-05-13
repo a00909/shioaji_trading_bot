@@ -1,8 +1,7 @@
-import heapq
 from dataclasses import dataclass, field
 from datetime import timedelta, time, date, datetime
 from functools import lru_cache
-from typing import Any
+from typing import Any, cast
 
 from shioaji.constant import TicksQueryType
 from shioaji.contracts import Contract
@@ -40,17 +39,19 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
         )
         return ticks
 
-    def _fetch_data_to_db_and_return_it(self, session, contract, fetch_dates: list[date]) -> list[DailyTicks]:
-        tasks = [
-            self._tpe.submit(
-                self._get_data_from_api,
-                contract,
-                self._dt_str(_start)
-            ) for _start in fetch_dates
-        ]
-        api_data: list[Ticks] = [task.result() for task in tasks]
+    def _fetch_data_to_db_and_return_it(self, session, contract, fetch_dates: set[date]) -> dict[date, DailyTicks]:
+        tasks = {
+            _start:
+                self._tpe.submit(
+                    self._get_data_from_api,
+                    contract,
+                    self._dt_str(_start)
+                ) for _start in fetch_dates
+        }
+        for dt, task in tasks.items():
+            tasks[dt] = task.result()
 
-        db_data = self._set_data_to_db_batch(session, contract.symbol, list(zip(fetch_dates, api_data)))
+        db_data = self._set_data_to_db_batch(session, contract.symbol, tasks)
         return db_data
 
     def _get_data_from_db(self, session, symbol, start: date) -> tuple[bool, DailyTicks]:
@@ -86,41 +87,38 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
         ).order_by(HistoryTick.ts)
         return stmt
 
-    def _get_data_from_db_batch(self, session, symbol, dates: list[date]) -> list[DailyTicks]:
+    def _get_data_from_db_batch(self, session, symbol, dates: set[date]) -> dict[date, DailyTicks]:
         stmts = []
+        ordered_dts = []
         for dt in dates:
             stmt = self._get_data_from_db_stmt(symbol, dt, dt)
             stmts.append(stmt)
+            ordered_dts.append(dt)
 
         query = union_all(*stmts).subquery()
         tick_alias = aliased(HistoryTick, query)
 
         raw_results = session.query(tick_alias, query.c.qid).all()
 
-        organized_dict = {d: [] for d in dates}
+        organized_dict = {d: [] for d in ordered_dts}
         for tick, q_date in raw_results:
             organized_dict[q_date].append(tick)
-        return sorted(
-            [DailyTicks(i[0], i[1]) for i in organized_dict.items()],
-            key=lambda x: x.date
-        )
+        return {i[0]: DailyTicks(i[0], i[1]) for i in organized_dict.items()}
 
-    def _set_data_to_db_batch(self, session, symbol, daily_data: list[tuple[date, Ticks]]):
-        ticks_lens = [len(ticks.ts) for _, ticks in daily_data]
-        num_all_ticks = sum(ticks_lens)
-        num_all_dates = len(daily_data)
+    def _set_data_to_db_batch(self, session, symbol, daily_data: dict[date, Ticks]):
+        dt_to_tick_len = {dt: len(ticks.ts) for dt, ticks in daily_data.items()}
+        num_ticks = sum(dt_to_tick_len.values())
+        num_dates = len(daily_data)
 
-        all_ticks: list[Any] = [None] * num_all_ticks
-        memos: list[Any] = [None] * num_all_dates
-        result: list[DailyTicks | None] = [None] * num_all_dates
-        dates: list[Any] = [None] * num_all_dates
+        all_ticks: list[Any] = [None] * num_ticks
+        memos: list[Any] = [None] * num_dates
+        result: dict[date, Any] = {}
 
         all_ticks_count = 0
-        for i in range(num_all_dates):
-            dates[i] = daily_data[i][0]
-            ticks_len = ticks_lens[i]
+        for i, dt in enumerate(dt_to_tick_len):
+            ticks_len = dt_to_tick_len[dt]
             day_ticks: list[Any] = [None] * ticks_len
-            ticks = daily_data[i][1]
+            ticks = daily_data[dt]
 
             for j in range(ticks_len):
                 new_tick = HistoryTick(
@@ -138,14 +136,14 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
                 all_ticks[all_ticks_count] = new_tick
                 all_ticks_count += 1
 
-            result[i] = DailyTicks(dates[i], day_ticks)
+            result[dt] = DailyTicks(dt, day_ticks)
 
             memos[i] = HistoryTickMemo(
-                date=dates[i],
+                date=dt,
                 symbol=symbol
             )
 
-        self._commit_to_db_with_session(session, HistoryTick.__tablename__, dates, all_ticks, memos)
+        self._commit_to_db_with_session(session, HistoryTick.__tablename__, dt_to_tick_len.keys(), all_ticks, memos)
         return result
 
     def _set_data_to_db(self, session, data: Ticks, symbol, start: date):
@@ -197,13 +195,15 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
     def _get_missing_dates_and_existing_data_in_redis(
             self,
             symbol,
-            check_dates: list[date]
-    ) -> tuple[list[date], list[DailyTicks]]:
+            check_dates: set[date]
+    ) -> tuple[set[date], dict[date, DailyTicks]]:
 
         pipe = self.redis.pipeline()
         redis_keys = []
 
+        ordered_dates = []
         for d in check_dates:
+            ordered_dates.append(d)
             redis_key = self._redis_key(symbol, d)
             redis_keys.append(redis_key)
             memo_key = self._memo_key(redis_key)
@@ -212,37 +212,35 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
         exists_bit = pipe.execute()
         existing_dates = []
         existing_keys = []
-        missing_dates = []
+        missing_dates = set()
 
-        for e, d, k in zip(exists_bit, check_dates, redis_keys):
+        for e, d, k in zip(exists_bit, ordered_dates, redis_keys):
             if e:
                 existing_dates.append(d)
                 existing_keys.append(k)
             else:
-                missing_dates.append(d)
+                missing_dates.add(d)
 
         # get existing data
         for k in existing_keys:
             pipe.zrange(k, 0, -1)
         redis_tick_raw = pipe.execute()
-        redis_ticks = []
+        redis_ticks = {}
         for dt, raw_ticks in zip(existing_dates, redis_tick_raw):
-            redis_ticks.append(
-                DailyTicks(
-                    dt,
-                    [HistoryTick.from_string(raw_tick) for raw_tick in raw_ticks]
-                )
+            redis_ticks[dt] = DailyTicks(
+                dt,
+                [HistoryTick.from_string(raw_tick) for raw_tick in raw_ticks]
             )
 
         return missing_dates, redis_ticks
 
-    def _set_data_to_redis(self, symbol, data: list[DailyTicks]):
+    def _set_data_to_redis(self, symbol, data: dict[date, DailyTicks]):
         if not data:
             raise Exception('no data to set to redis.')
 
         pipe = self.redis.pipeline()
 
-        for daily_ticks in data:
+        for daily_ticks in data.values():
             key = self._redis_key(symbol, daily_ticks.date)
             if daily_ticks.ticks:
                 redis_data = {tick.to_string(): tick.ts.timestamp() for tick in daily_ticks.ticks}
@@ -313,20 +311,18 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
             contract: Contract,
             str_start: str = None,
             str_end: str = None,
-            dates: list[date] = None
+            check_dates: set[date] = None
     ) -> list[DailyTicks]:
 
         if str_start and str_end:
             self._date_check(str_start, str_end)
             start = self._dt(str_start).date()
             end = self._dt(str_end).date()
-            all_dt: set[date] = enumerate_dates_set_by_range(start, end)
-            dates = list(all_dt)
+            check_dates = enumerate_dates_set_by_range(start, end)
 
-        elif dates is not None:
-            if not dates:
+        elif check_dates is not None:
+            if not check_dates:
                 return []
-            all_dt: set[date] = set(dates)
         else:
             raise Exception('no range or dates given.')
 
@@ -340,20 +336,26 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
 
         # check db missing (fetch if missing)
         with self.session_maker() as session:
-            list_db_missing_dt: list[date] = self._get_missing_dates(session, symbol, dates=dates)
-            if list_db_missing_dt:
-                api_data = self._fetch_data_to_db_and_return_it(session, contract, list_db_missing_dt)
-                assert len(list_db_missing_dt) == len(api_data)
+            db_missing_dts: set[date] = cast(
+                set[date],
+                self._get_missing_dates(session, symbol, dates=check_dates, return_set=True)
+            )
+            if db_missing_dts:
+                api_data: dict[date, DailyTicks] = self._fetch_data_to_db_and_return_it(
+                    session,
+                    contract,
+                    db_missing_dts
+                )
+                assert len(db_missing_dts) == len(api_data)
 
             # check redis missing (query db if missing)
-            list_redis_check_dates: list[date] = list(all_dt - set(list_db_missing_dt))
-            list_redis_check_dates.sort()
-            list_redis_missing, redis_data = self._get_missing_dates_and_existing_data_in_redis(
+            redis_check_dts: set[date] = check_dates - db_missing_dts
+            redis_missing_dts, redis_data = self._get_missing_dates_and_existing_data_in_redis(
                 symbol,
-                list_redis_check_dates
+                redis_check_dts
             )
-            if list_redis_missing:
-                db_data = self._get_data_from_db_batch(session, symbol, list_redis_missing)
+            if redis_missing_dts:
+                db_data: dict[date, DailyTicks] = self._get_data_from_db_batch(session, symbol, redis_missing_dts)
 
         # set all missing data to redis
         if api_data:
@@ -362,9 +364,15 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
             self._set_data_to_redis(symbol, db_data)
 
         # sort, combine, return
-        return list(
-            heapq.merge(
-                api_data, db_data, redis_data,
-                key=lambda x: x.date
-            )
-        )
+        result = []
+        for dt in check_dates:
+            if dt in api_data:
+                result.append(api_data[dt])
+            elif dt in db_data:
+                result.append(db_data[dt])
+            elif dt in redis_data:
+                result.append(redis_data[dt])
+            else:
+                result.append([])
+
+        return result
