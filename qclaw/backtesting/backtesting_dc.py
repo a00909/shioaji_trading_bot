@@ -31,8 +31,8 @@ class BacktestingDC(DonchianBacktestingContext):
     TRAIL_FRAC_SHORT = 0.05
     OUTPUT_DIR = r'.\results'
 
-    def __init__(self, test_dates):
-        super().__init__(test_dates)
+    def __init__(self, start, end):
+        super().__init__(start, end)
         self.records = []
 
     def _long_signal(self, i):

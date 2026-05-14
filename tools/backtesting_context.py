@@ -1,5 +1,7 @@
 from datetime import timedelta
 
+from qclaw.backtesting.npy_cache import NpyCacheManager
+from qclaw.backtesting.npy_cached_history_tick_manager import NpyCachedHistoryTickManager
 from tools.app import App
 from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
 from data_manager.history_data_manager.kbar_manager import KBarManager
@@ -13,6 +15,8 @@ class BacktestingContext:
         self.app = App(init=True)
         self.contract = self.app.api.Contracts.Futures.TMF.TMFR1  # todo: 不知道怎麼做成讓使用者輸入，暫時寫死
         self.htm = HistoryTickManager(self.app.api, self.app.redis, self.app.session_maker)
+        self.npy_cache_manager = NpyCacheManager()
+        self.npy_htm = NpyCachedHistoryTickManager(self.npy_cache_manager, self.htm)
         self.kbm = KBarManager(self.app.api, self.app.redis, self.app.session_maker)
         self.iiva = IntradayIntervalVolumeAvg(self.contract, self.kbm, self.app.redis)
 

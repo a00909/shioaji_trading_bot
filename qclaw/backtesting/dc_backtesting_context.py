@@ -4,6 +4,7 @@ Donchian 回測情境基礎類別
 import sys
 import time
 
+from qclaw.backtesting.npy_cached_history_tick_manager import DailySlice, TickSlice
 from tools.backtesting_context import BacktestingContext
 
 sys.path.insert(0, r'/')
@@ -11,7 +12,7 @@ sys.path.insert(0, r'/')
 import numpy as np
 import pandas as pd
 
-from datetime import timedelta
+from datetime import timedelta, date
 
 from qclaw_bk.ml_strategy.feature_builder import FeatureBuilder, FeatureConfig
 import matplotlib
@@ -27,46 +28,42 @@ sys.path.insert(0, r'C:\Repos\shioaji_trading')
 
 
 class DonchianBacktestingContext(BacktestingContext):
-    def __init__(self, test_dates):
+    def __init__(self, start: date = None, end: date = None):
         super().__init__()
-        self.TEST_DATES = test_dates
 
-        arr_times, arr_prices, arr_ha, arr_la, arr_h, arr_l = [], [], [], [], [], []
         day_labels = []
         self.day_ranges = {}
-        for date_str in self.TEST_DATES:
-            _st_time = time.time()
-            ticks = self.htm.get_data(self.contract, date_str)
-            print(f'tick load consumed {time.time() - _st_time} seconds.')
 
-            if not ticks:
-                print(f'  [skip] {date_str}')
-                continue
+        # init ticks
+        _st_time = time.time()
+        daily_slices: list[DailySlice] = self.npy_htm.get(self.contract, start, end)
+        slices: list[TickSlice] = [s.tick_slice for s in daily_slices if s.tick_slice is not None]
+        ticks = TickSlice.merge_slices(slices)
 
-            _st_time = time.time()
-            fb = FeatureBuilder(ticks, self.iiva_lookup, FeatureConfig(
-                donchian_window=timedelta(seconds=1800),
-            ))
-            f = fb.build(['price', 'donchian_ha', 'donchian_la', 'donchian_h', 'donchian_l'])
-            print(f'feature build consumed {time.time() - _st_time} seconds.')
+        print(f'tick load consumed {time.time() - _st_time} seconds.')
 
-            arr_times.append(fb.times.astype(np.float64))
-            arr_prices.append(f['price'].values.astype(np.float64))
-            arr_ha.append(f['donchian_ha'].values.astype(np.float64))
-            arr_la.append(f['donchian_la'].values.astype(np.float64))
-            arr_h.append(f['donchian_h'].values.astype(np.float64))
-            arr_l.append(f['donchian_l'].values.astype(np.float64))
-            day_labels.extend([date_str] * len(fb.times))
-            self.day_ranges[date_str] = float(f['price'].values.max() - f['price'].values.min())
+        # build features
+        _st_time = time.time()
+        fb = FeatureBuilder(ticks, self.iiva_lookup, FeatureConfig(
+            donchian_window=timedelta(seconds=1800),
+        ))
+        f = fb.build(['price', 'donchian_ha', 'donchian_la', 'donchian_h', 'donchian_l'])
+        print(f'feature build consumed {time.time() - _st_time} seconds.')
 
-            print(f'  {date_str}: {len(fb.times)} ticks')
+        for daily_slice in daily_slices:
+            day_labels.extend([daily_slice.date] * len(daily_slice.tick_slice))
+            daily_max = np.max(daily_slice.tick_slice.closes)
+            daily_min = np.min(daily_slice.tick_slice.closes)
+            self.day_ranges[daily_slice.date] = float(daily_max - daily_min)
 
-        self.times = np.concatenate(arr_times)
-        self.prices = np.concatenate(arr_prices)
-        self.has = np.concatenate(arr_ha)
-        self.las = np.concatenate(arr_la)
-        self.hs = np.concatenate(arr_h)
-        self.ls = np.concatenate(arr_l)
+            print(f'\t{daily_slice.date}: {len(daily_slice.tick_slice)}')
+
+        self.times = fb.times.astype(np.float64)
+        self.prices = f['price'].values.astype(np.float64)
+        self.has = f['donchian_ha'].values.astype(np.float64)
+        self.las = f['donchian_la'].values.astype(np.float64)
+        self.hs = f['donchian_h'].values.astype(np.float64)
+        self.ls = f['donchian_l'].values.astype(np.float64)
         self.days = np.array(day_labels, dtype=object)
         self.n_total = len(self.prices)
 

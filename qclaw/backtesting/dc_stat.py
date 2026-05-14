@@ -11,8 +11,8 @@ from qclaw.backtesting.dc_backtesting_context import DonchianBacktestingContext
 
 
 class DonchianStat(DonchianBacktestingContext):
-    def __init__(self, test_dates, test_thresholds: list[int]):
-        super().__init__(test_dates)
+    def __init__(self, start, end, test_thresholds: list[int]):
+        super().__init__(start, end)
         self.thresholds = test_thresholds
         self.records = None
         self.launch_threshold = min(self.thresholds)

@@ -42,6 +42,9 @@ class TickSlice:
     bid_volumes: np.ndarray  # int64
     ask_volumes: np.ndarray  # int64
 
+    def __len__(self) -> int:
+        return len(self.times)
+
     @staticmethod
     def merge_slices(slices: list['TickSlice']) -> 'TickSlice':
         if not slices:
@@ -57,6 +60,12 @@ class TickSlice:
             bid_volumes=np.concatenate([s.bid_volumes for s in slices]),
             ask_volumes=np.concatenate([s.ask_volumes for s in slices])
         )
+
+
+@dataclass
+class DailySlice:
+    date: date
+    tick_slice: TickSlice
 
 
 class NpyCachedHistoryTickManager:
@@ -98,7 +107,7 @@ class NpyCachedHistoryTickManager:
             ),
         )
 
-    def _load_from_npy(self, symbol: str, dt: date) -> tuple[CacheState, Optional[TickSlice]]:
+    def _load_from_npy(self, symbol: str, dt: date) -> tuple[CacheState, TickSlice]:
         """Load TickSlice from npy cache. Returns None if not cached."""
         time_key = self._key(symbol, dt, TickField.TIMES)
         cache_state = self.npy_cache.is_cached(time_key)
@@ -114,7 +123,7 @@ class NpyCachedHistoryTickManager:
         for f, arr in TickField.from_dataclass(slice_).items():
             self.npy_cache.set(self._key(symbol, dt, f), arr)
 
-    def get(self, contract, start, end) -> TickSlice | None:
+    def get(self, contract, start, end) -> list[DailySlice]:
         """Get tick data for date range.
 
         Parameters
@@ -128,14 +137,14 @@ class NpyCachedHistoryTickManager:
 
         Returns
         -------
-        TickSlice
+        'TickSlice'
             TickSlice objects sorted by date.
             Skips dates with empty cache markers.
         """
         symbol = contract.symbol
         dates = enumerate_dates_set_by_range(start, end)
 
-        date_to_npy_slice: dict[date, TickSlice | None] = {}
+        date_to_npy_slice: dict[date, TickSlice] = {}
 
         missed_dates = set()
         for dt in dates:
@@ -155,15 +164,15 @@ class NpyCachedHistoryTickManager:
         else:
             date_to_history_ticks = []
 
-        for dt in sorted(list(dates)): # 需依照順序
+        for dt in sorted(list(dates)):  # 需依照順序
             if dt in date_to_npy_slice:
                 if date_to_npy_slice[dt]:
-                    results.append(date_to_npy_slice[dt])
+                    results.append(DailySlice(dt, date_to_npy_slice[dt]))
             elif dt in date_to_history_ticks:
                 ticks = date_to_history_ticks[dt]
                 if ticks:
                     slice_ = self._build_tick_slice(ticks)
-                    results.append(slice_)
+                    results.append(DailySlice(dt, slice_))
                     self._save_to_npy(symbol, dt, slice_)
                 else:
                     self.npy_cache.mark_empty(self._key(symbol, dt, TickField.TIMES))
@@ -171,5 +180,5 @@ class NpyCachedHistoryTickManager:
                 raise Exception(f"neither in npy cache nor history ticks with date {dt}.")
 
         if not results:
-            return None
-        return TickSlice.merge_slices(results)
+            return []
+        return results
