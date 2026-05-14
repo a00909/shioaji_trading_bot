@@ -23,6 +23,7 @@ class DailyTicks:
 
 
 class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
+    REDIS_WRITE_BUFFER_SIZE = 100000
 
     def __init__(self, api, redis, session_maker: sessionmaker[Session], log_on=True):
         super().__init__(api, redis, session_maker, log_on)
@@ -239,20 +240,26 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
             raise Exception('no data to set to redis.')
 
         pipe = self.redis.pipeline()
-
+        data_count = 0
         for daily_ticks in data.values():
             key = self._redis_key(symbol, daily_ticks.date)
             if daily_ticks.ticks:
-                redis_data = {tick.to_string(): tick.ts.timestamp() for tick in daily_ticks.ticks}
-                pipe.zadd(key, redis_data)
-                pipe.expire(key, EXP86400)
-
+                redis_data = {}
+                for tick in daily_ticks.ticks:
+                    redis_data[tick.to_string()] = tick.ts.timestamp()
+                    data_count += 1
+                    if data_count >= HistoryTickManager.REDIS_WRITE_BUFFER_SIZE:
+                        pipe.zadd(key, redis_data)
+                        pipe.expire(key, EXP86400)
+                        self._log(f'{data_count}({daily_ticks.date}) will be write to redis.')
+                        pipe.execute(True)
+                        data_count = 0
+                        redis_data.clear()
             else:
-                self._log('no history tick data.(might be weekends?)')
+                self._log(f'{daily_ticks.date}: no tick data. (might be weekend)')
 
             pipe.set(self._memo_key(key), self.redis_memo_default_value, ex=EXP86400)
-
-        pipe.execute(True)
+            pipe.execute(True)
 
     def _prepare_data(self, session, contract: Contract, start: date) -> tuple[bool, DailyTicks]:
         symbol = contract.symbol
