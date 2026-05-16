@@ -10,7 +10,7 @@ from tools.app import App
 
 class MainApp:
     def __init__(self, contract=None, stra: type[AbsStrategyRunner] = None):
-        self.app = App(init=True)
+        self.app = App()
         print(self.app.api.futopt_account)
         if not contract:
             contract = self.app.api.Contracts.Futures.TXF.TXFR1

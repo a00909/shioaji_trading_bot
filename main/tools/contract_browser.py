@@ -62,7 +62,7 @@ class ContractBrowser:
 
 
 if __name__ == "__main__":
-    app = App(init=True)
+    app = App()
     cb = ContractBrowser(app)
     cb.start()
     app.shut()

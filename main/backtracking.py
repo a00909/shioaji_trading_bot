@@ -13,7 +13,7 @@ import pandas as pd
 
 plotter.active()
 start = datetime.now()
-app = App(init=True)
+app = App()
 contract = app.api.Contracts.Futures.TMF.TMFR1
 # contract = DummyContract('TMFR1')
 account = app.api.futopt_account

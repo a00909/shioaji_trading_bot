@@ -9,10 +9,10 @@ from qclaw.backtesting.npy_cache import NpyCacheManager
 from tools.plotter import plotter
 from tools.app import App
 
-app = App(True)
+app = App()
 npy_cache_manager = NpyCacheManager()
 htm = HistoryTickManager(app.api, app.redis, app.session_maker)
-npy_cached_htm = NpyCachedHistoryTickManager(npy_cache_manager, app.history_tick_manager)
+npy_cached_htm = NpyCachedHistoryTickManager(app.history_tick_manager)
 slice_ = npy_cached_htm.get(
     app.api.Contracts.Futures.TMF.TMFR1,
     date(2026, 5, 7),

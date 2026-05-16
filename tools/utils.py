@@ -9,6 +9,7 @@ import pandas as pd
 import shioaji as sj
 from dotenv import load_dotenv
 from redis.client import Redis
+from shioaji import Shioaji
 from shioaji.contracts import FetchStatus
 from shioaji.data import Ticks
 
@@ -55,9 +56,15 @@ def decode_redis(data: bytes) -> str:
     return data.decode()
 
 
-def history_ts_to_datetime(ts: int):
+def sj_history_ts_to_datetime(ts: int):
     ts_posix = ts / (10 ** 9)
     return datetime.fromtimestamp(ts_posix, tz=UTC_TZ).replace(tzinfo=DEFAULT_TIMEZONE)
+
+
+def db_history_ts_to_datetime(ts: float):
+    ts_posix = ts / (10 ** 6)
+    # return datetime.fromtimestamp(ts_posix, tz=UTC_TZ).replace(tzinfo=DEFAULT_TIMEZONE)
+    return datetime.fromtimestamp(ts_posix)
 
 
 def get_now():
@@ -104,13 +111,13 @@ def to_df(ticks: list[sj.TickFOPv1]):
     return df
 
 
-def init_custom_logger():
+def init_custom_logger(name=None):
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
 
     ch.setFormatter(CustomFormatter())
 
-    logger = logging.getLogger()
+    logger = logging.getLogger(name)
     logger.addHandler(ch)
 
     logger.setLevel(logging.INFO)
@@ -123,7 +130,7 @@ def ticks_to_tickfopv1(ticks: Ticks):
     l = len(ticks.close)
     ret = []
     while i < l:
-        dt = history_ts_to_datetime(ticks.ts[i])
+        dt = sj_history_ts_to_datetime(ticks.ts[i])
         tick = TickFOP(
             datetime=dt,
             close=ticks.close[i],
@@ -236,3 +243,6 @@ def is_in_time_ranges(current_time: datetime_time, ranges: list[tuple[datetime_t
 def replace_time(dt: datetime, t: datetime_time):
     return dt.replace(hour=t.hour, minute=t.minute, second=t.second, microsecond=t.microsecond)
 
+
+def tmf_r1_contract(api: Shioaji):
+    return api.Contracts.Futures.TMF.TMFR1

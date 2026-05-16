@@ -13,7 +13,7 @@ from data_manager.history_data_manager.history_data_manager_base import HistoryD
 from tools.constants import DATE_FORMAT_DB_AND_SJ, EXP86400
 from tools.date_range_utils import group_dates_into_ranges, subtract_ranges
 from tools.kbar_utils import to_time_key
-from tools.utils import history_ts_to_datetime
+from tools.utils import sj_history_ts_to_datetime
 
 
 class KBarManager(HistoryDataManagerBase[KBar, KBarMemo]):
@@ -44,7 +44,7 @@ class KBarManager(HistoryDataManagerBase[KBar, KBarMemo]):
         for kbars in data:
             for i in range(len(kbars.ts)):
                 kbar = KBar()
-                kbar.ts = history_ts_to_datetime(kbars.ts[i])
+                kbar.ts = sj_history_ts_to_datetime(kbars.ts[i])
                 kbar.open = kbars.Open[i]
                 kbar.close = kbars.Close[i]
                 kbar.high = kbars.High[i]

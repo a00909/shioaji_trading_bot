@@ -2,7 +2,7 @@ from shioaji.contracts import Contracts, StreamIndexContracts, StreamMultiContra
 
 from tools.app import App
 
-app = App(init=True)
+app = App()
 contracts: Contracts = app.api.Contracts
 
 keys = list(contracts.__class__.model_fields.keys())

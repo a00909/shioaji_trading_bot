@@ -15,7 +15,7 @@ from tools.backtracking.dummy_shioaji import DummyShioaji
 class LongBacktracker:
     def __init__(self):
 
-        self.app = App(init=True)
+        self.app = App()
         self.contract = self.app.api.Contracts.Futures.TMF.TMFR1
         self.account = self.app.api.futopt_account
         self.htm = HistoryTickManager(self.app.api, self.app.redis, self.app.session_maker)

@@ -7,7 +7,7 @@ from tools.app import App
 
 class Main:
     def __init__(self, app: App) -> None:
-        app = App(init=True)
+        app = App()
         api = app.api
         redis = app.redis
         account = app.get_default_account()

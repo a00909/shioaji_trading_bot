@@ -18,7 +18,7 @@ def print_nl_by_5(data):
     print()
 
 
-app = App(init=True, init_api_if_init_app=False)
+app = App()
 
 bttg = BacktrackingTimeGetter(app.redis, get_key)
 

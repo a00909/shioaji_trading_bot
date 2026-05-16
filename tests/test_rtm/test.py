@@ -3,7 +3,7 @@ from tools.app import App
 import shioaji as sj
 import pandas as pd
 
-app = App(True)
+app = App()
 rtm = RealtimeTickManager(
     app.api,
     app.redis,

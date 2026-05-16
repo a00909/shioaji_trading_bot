@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
 from functools import lru_cache
-from typing import Optional
 
 from data_manager.history_data_manager.history_tick_manager import HistoryTickManager, DailyTicks
 from database.schema.history_tick import HistoryTick
@@ -69,8 +68,8 @@ class DailySlice:
 
 
 class NpyCachedHistoryTickManager:
-    def __init__(self, npy_cache_manager: NpyCacheManager, htm: HistoryTickManager):
-        self.npy_cache = npy_cache_manager
+    def __init__(self, htm: HistoryTickManager):
+        self.npy_cache = NpyCacheManager()
         self.htm = htm
 
     @staticmethod

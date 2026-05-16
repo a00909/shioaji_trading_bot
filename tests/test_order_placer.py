@@ -18,7 +18,7 @@ def cb(stat: OrderState, msg: dict):
     print(f'stat: {stat}, msg: {msg.get("ts")}')
 
 
-app = App(init=True)
+app = App()
 print(app.api.futopt_account)
 
 order_placer = OrderPlacer(app.api, app._contract, app.api.futopt_account)
@@ -26,15 +26,15 @@ order_placer = OrderPlacer(app.api, app._contract, app.api.futopt_account)
 trade = order_placer.simple_buy(8)
 order_placer.wait_for_completely_deal()
 
-print('positions:', app.api.list_positions(app.api.futopt_account),'\n')
-print('profit_loss:', app.api.list_profit_loss(app.api.futopt_account),'\n')
+print('positions:', app.api.list_positions(app.api.futopt_account), '\n')
+print('profit_loss:', app.api.list_profit_loss(app.api.futopt_account), '\n')
 # print('trades:', app.api.list_trades(),'\n')
 
 trade = order_placer.close_all()
 order_placer.wait_for_completely_deal()
 
-print('positions:', app.api.list_positions(app.api.futopt_account),'\n')
-print('profit_loss:', app.api.list_profit_loss(app.api.futopt_account),'\n')
+print('positions:', app.api.list_positions(app.api.futopt_account), '\n')
+print('profit_loss:', app.api.list_profit_loss(app.api.futopt_account), '\n')
 # print('trades:', app.api.list_trades(),'\n')
 
 app.shut()

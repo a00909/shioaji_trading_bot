@@ -12,11 +12,10 @@ from strategy.tools.kbar_indicators.intraday_interval_volume_avg.intraday_interv
 
 class BacktestingContext:
     def __init__(self):
-        self.app = App(init=True)
+        self.app = App()
         self.contract = self.app.api.Contracts.Futures.TMF.TMFR1  # todo: 不知道怎麼做成讓使用者輸入，暫時寫死
-        self.htm = HistoryTickManager(self.app.api, self.app.redis, self.app.session_maker)
-        self.npy_cache_manager = NpyCacheManager()
-        self.npy_htm = NpyCachedHistoryTickManager(self.npy_cache_manager, self.htm)
+        self.htm = self.app.history_tick_manager
+        self.npy_htm = NpyCachedHistoryTickManager(self.htm)
         self.kbm = KBarManager(self.app.api, self.app.redis, self.app.session_maker)
         self.iiva = IntradayIntervalVolumeAvg(self.contract, self.kbm, self.app.redis)
 

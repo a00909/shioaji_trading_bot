@@ -5,7 +5,7 @@ from data_manager.rtm.realtime_tick_manager import RealtimeTickManager
 from tools.utils import to_df
 from tools.app import App
 
-app = App(True)
+app = App()
 rtm = RealtimeTickManager(
     app.api,
     app.redis,

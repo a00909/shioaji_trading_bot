@@ -1,6 +1,6 @@
 from tools.app import App
 
-app = App(init=True)
+app = App()
 
 print('===Interactive msg console===')
 

@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from tools.utils import get_now
 from tools.constants import DATE_FORMAT_DB_AND_SJ
 
-app = App(True)
+app = App()
 contract = app.api.Contracts.Futures.TMF.TMFR1
 date = (get_now().date()+timedelta(days=-1)).strftime(DATE_FORMAT_DB_AND_SJ)
 
