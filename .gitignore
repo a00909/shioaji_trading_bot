@@ -1,0 +1,12 @@
+.idea
+__pycache__
+*.npy
+*.png
+*.csv
+*.pkl
+*.empty
+*.txt
+*.log
+*.html
+*.env
+*.bk
