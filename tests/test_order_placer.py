@@ -1,11 +1,7 @@
-import logging
-import threading
-import time
-
 from shioaji.constant import OrderState
 
 from strategy.tools.order_placer import OrderPlacer
-from tools.app import App
+from tools.app.app import App
 
 # logging.basicConfig(
 #     level=logging.INFO,  # 设置日志级别

@@ -1,6 +1,6 @@
-from shioaji.contracts import Contracts, StreamIndexContracts, StreamMultiContract, Index, Stock, Future, Option
+from shioaji.contracts import Contracts, StreamMultiContract, Index, Stock, Future, Option
 
-from tools.app import App
+from tools.app.app import App
 
 app = App()
 contracts: Contracts = app.api.Contracts

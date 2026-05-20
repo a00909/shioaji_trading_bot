@@ -6,13 +6,12 @@ from psycopg import Connection
 from shioaji.data import Ticks
 from sqlalchemy import Engine
 
-from data_manager.history_data_manager.history_tick_manager2.common import (
-    TICKS_FIELDS,
-    TICKS_UNPACK_FORMAT
-)
+from data_manager.history_data_manager.history_tick_manager2._common import TICKS_FIELDS
 
 
 class DBLoader:
+    ticks_unpack_format = '> 2x 4xq 4xd 4xi 4xd 4xi 4xd 4xi 4xi'
+
     def __init__(self, engine):
         self._engine: Engine = engine
 
@@ -22,7 +21,8 @@ class DBLoader:
             COPY (
                 SELECT {', '.join(TICKS_FIELDS)} 
                 FROM history_tick
-                WHERE symbol='{symbol}' and ts between '{dt - timedelta(days=1)} 15:00:00' and '{dt} 13:45:00'
+                WHERE symbol='{symbol}' and ts between '{dt - timedelta(days=1)} 15:00:00' and '{dt} 13:45:05'
+                ORDER BY ts ASC
             )TO STDIN (FORMAT BINARY)
         """
 
@@ -40,7 +40,7 @@ class DBLoader:
                         while raw:
                             if raw != b'\xff\xff':  # 結尾符
                                 try:
-                                    for row in struct.iter_unpack(TICKS_UNPACK_FORMAT, raw):
+                                    for row in struct.iter_unpack(DBLoader.ticks_unpack_format, raw):
                                         for field, value in zip(TICKS_FIELDS, row):
                                             data_dict[field].append(value)
                                 except Exception as e:

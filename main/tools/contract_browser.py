@@ -1,5 +1,5 @@
 from shioaji.contracts import Contracts, Contract, StreamIndexContracts, StreamMultiContract
-from tools.app import App
+from tools.app.app import App
 
 
 class ContractBrowser:

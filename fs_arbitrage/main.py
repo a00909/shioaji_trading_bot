@@ -2,7 +2,7 @@ from threading import Event, Lock
 
 from fs_arbitrage.pair_container import PairContainer
 from fs_arbitrage.variety_unit import VarietyUnit
-from tools.app import App
+from tools.app.app import App
 
 
 class Main:

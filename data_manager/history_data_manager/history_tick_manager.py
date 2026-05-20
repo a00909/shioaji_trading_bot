@@ -13,7 +13,8 @@ from data_manager.history_data_manager.history_data_manager_base import HistoryD
 from database.schema.history_tick import HistoryTickMemo, HistoryTick
 from tools.constants import EXP86400
 from tools.date_range_utils import enumerate_dates_set_by_range
-from tools.utils import sj_history_ts_to_datetime, is_in_time_ranges
+from tools.utils import is_in_time_ranges
+from tools.time_utils import sj_history_ns_to_datetime
 
 
 @dataclass
@@ -123,7 +124,7 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
 
             for j in range(ticks_len):
                 new_tick = HistoryTick(
-                    ts=sj_history_ts_to_datetime(ticks.ts[j]),
+                    ts=sj_history_ns_to_datetime(ticks.ts[j]),
                     symbol=symbol,
                     close=ticks.close[j],
                     volume=ticks.volume[j],
@@ -161,7 +162,7 @@ class HistoryTickManager(HistoryDataManagerBase[HistoryTick, HistoryTickMemo]):
         new_ticks = []
         for i in range(ticks_len):
             new_ticks.append(HistoryTick(
-                ts=sj_history_ts_to_datetime(data.ts[i]),
+                ts=sj_history_ns_to_datetime(data.ts[i]),
                 symbol=symbol,
                 close=data.close[i],
                 volume=data.volume[i],

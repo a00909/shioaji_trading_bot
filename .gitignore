@@ -10,3 +10,5 @@ __pycache__
 *.html
 *.env
 *.bk
+*.ini
+/sino_api_key.json

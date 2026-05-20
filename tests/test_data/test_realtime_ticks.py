@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from data_manager.rtm.realtime_tick_manager import RealtimeTickManager
 from tools.utils import to_df
-from tools.app import App
+from tools.app.app import App
 
 app = App()
 rtm = RealtimeTickManager(

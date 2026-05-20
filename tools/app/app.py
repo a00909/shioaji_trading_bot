@@ -1,5 +1,4 @@
 import atexit
-import logging
 import os
 import threading
 
@@ -8,13 +7,12 @@ from dotenv import load_dotenv
 from redis.client import Redis
 from shioaji import Shioaji
 from shioaji.constant import SecurityType
-from shioaji.contracts import FetchStatus
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
-from tools import RedisManager
-from tools.utils import init_custom_logger
+from tools.logger.custom_logger import CustomLogger
+from tools.redis_manager import RedisManager
 
 
 class App:
@@ -28,11 +26,11 @@ class App:
         self._api_started = False
         self._contract_waiting = {SecurityType.Index, SecurityType.Future, SecurityType.Stock, SecurityType.Option}
 
-        init_custom_logger()
-        self._logger = logging.getLogger('app')
+        self._logger = CustomLogger.get_logger('app')
 
     def shut(self):
         if self._api_started:
+            self._logger.info(self._api.usage())
             self._api.logout()
             self._api_started = False
             self._logger.info(f"shioaji logged out.")

@@ -5,7 +5,7 @@ from strategy.tools.kbar_indicators.kbar_indicator_center import KbarIndicatorCe
 from strategy.tools.order_placer import OrderPlacer
 from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
 from data_manager.rtm.realtime_tick_manager import RealtimeTickManager
-from tools.app import App
+from tools.app.app import App
 
 
 class MainApp:

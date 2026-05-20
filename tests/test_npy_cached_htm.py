@@ -7,7 +7,7 @@ from data_manager.history_data_manager.history_tick_manager import HistoryTickMa
 from qclaw.backtesting.npy_cached_history_tick_manager import NpyCachedHistoryTickManager, TickSlice
 from qclaw.backtesting.npy_cache import NpyCacheManager
 from tools.plotter import plotter
-from tools.app import App
+from tools.app.app import App
 
 app = App()
 npy_cache_manager = NpyCacheManager()

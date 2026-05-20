@@ -5,7 +5,7 @@ from strategy.tools.indicator_provider.dummy_indicator_provider import DummyIndi
 from strategy.tools.kbar_indicators.kbar_indicator_center import KbarIndicatorCenter
 from strategy.tools.order_placer import OrderPlacer
 from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
-from tools.app import App
+from tools.app.app import App
 from tools.backtracking.dummy_rtm import DummyRealtimeTickManager
 from tools.backtracking.dummy_shioaji import DummyShioaji
 from tools.plotter import plotter

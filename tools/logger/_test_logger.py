@@ -1,11 +1,6 @@
-import logging
+from tools.logger.custom_logger import CustomLogger
 
-from tools.utils import init_custom_logger
-
-# app = App()
-init_custom_logger()
-
-logger = logging.getLogger('test')
+logger = CustomLogger.get_logger('test')
 
 logger.debug("debug message")
 logger.info("info message")
