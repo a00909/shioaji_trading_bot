@@ -50,6 +50,5 @@ FIELD_COUNT = len(TickField)
 TICKS_FIELDS = tuple(f.prop_name for f in TickField)
 FIELD_TYPE_MAP = {f.prop_name: f.np_type for f in TickField}
 FIELD_LENS_LIST = tuple(f.byte_len for f in TickField)
-PACK_FMT_TEMPLATE = "!hI" + "I".join(f.struct_fmt for f in TickField) + "I{0}s"
+PACK_FMT_TEMPLATE = "!hI" + "I".join(f.struct_fmt for f in TickField) + "I{0}s" # deprecated
 UNPACK_STRUCT = struct.Struct('>2x4x' + '4x'.join(f.struct_fmt for f in TickField))
-DTYPE_TEMPLATE = []

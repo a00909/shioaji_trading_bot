@@ -3,10 +3,14 @@ from datetime import date, timedelta
 from psycopg import Connection
 from shioaji.data import Ticks
 
+from data_manager.history.htm2._npy_binary_packer import npy_unpack
+from data_manager.history.statics.np_ticks import NPTicks
 from data_manager.history.statics.tick_field import TICKS_FIELDS, UNPACK_STRUCT
+from tools.logger.custom_logger import CustomLogger
 
 
 class DBLoader:
+    _logger = CustomLogger.get_logger('db_loader')
 
     @staticmethod
     def copy_stmt(symbol, dt):
@@ -20,7 +24,7 @@ class DBLoader:
         """
 
     @staticmethod
-    def load(conn: Connection, symbol, dates: set[date]) -> dict[date, Ticks]:
+    def load(conn: Connection, symbol, dates: set[date]) -> dict[date, NPTicks]:
         data = {}
 
         if not dates:
@@ -30,20 +34,11 @@ class DBLoader:
             for dt in dates:
                 sql = DBLoader.copy_stmt(symbol, dt)
                 with cur.copy(sql) as copy:
-                    data_dict = {field: [] for field in TICKS_FIELDS}
-
-                    raw = copy.read()[19:]  # 第一次過濾header
-                    while raw:
-                        if raw != b'\xff\xff':  # 結尾符
-                            try:
-                                for row in UNPACK_STRUCT.unpack(raw):
-                                    for field, value in zip(TICKS_FIELDS, row):
-                                        data_dict[field].append(value)
-                            except Exception as e:
-                                print(e, len(raw), [b for b in raw])
-                        raw = copy.read()
-
-                    ticks = Ticks(**data_dict)
+                    chunks = []
+                    while chunk := copy.read():
+                        chunks.append(chunk)
+                    raw = b''.join(chunks)
+                    DBLoader._logger.info(f'{len(chunks)} chucks read. {len(raw)} bytes.')
+                    ticks = npy_unpack(symbol, raw[19:-2])
                     data[dt] = ticks
-
         return data
