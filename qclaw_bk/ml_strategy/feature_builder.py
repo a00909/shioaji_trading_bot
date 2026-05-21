@@ -124,14 +124,14 @@ class FeatureBuilder:
 
     def _init_attrs_by_tick_slice(self, ticks: TickSlice):
         # 解析 tick 資料
-        self._times = ticks.times
-        self._closes = ticks.closes
-        self._volumes = ticks.volumes
-        self._tick_types = ticks.tick_types
-        self._bid_prices = ticks.bid_prices
-        self._ask_prices = ticks.ask_prices
-        self._bid_volumes = ticks.bid_volumes
-        self._ask_volumes = ticks.ask_volumes
+        self._times = ticks.ts
+        self._closes = ticks.close
+        self._volumes = ticks.volume
+        self._tick_types = ticks.tick_type
+        self._bid_prices = ticks.bid_price
+        self._ask_prices = ticks.ask_price
+        self._bid_volumes = ticks.bid_volume
+        self._ask_volumes = ticks.ask_volume
 
     def _init_attrs_by_history_ticks(self, ticks: list[HistoryTick]):
         self._times = np.array([t.ts.timestamp() for t in ticks], dtype=np.float64)

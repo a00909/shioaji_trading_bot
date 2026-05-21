@@ -1,6 +1,6 @@
 from datetime import date
 
-from data_manager.history_data_manager.history_tick_manager2._db_loader import DBLoader
+from data_manager.history.htm2._db_loader import DBLoader
 from tools.app.app import App
 from tools.plotter import plotter
 from tools.time_utils import pg_us_to_datetime

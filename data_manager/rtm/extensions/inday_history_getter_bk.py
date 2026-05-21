@@ -7,8 +7,8 @@ from redis.client import Redis
 from shioaji.constant import TicksQueryType
 from shioaji.data import Ticks
 
-from data.tick_fop_v1d1 import TickFOPv1D1
-from tools.constants import DATE_FORMAT_SHIOAJI
+from data.unified.tick.tick_fop import TickFOP
+from tools.constants import DATE_FORMAT_DB_AND_SJ
 from tools.utils import ticks_to_tickfopv1
 
 
@@ -32,7 +32,7 @@ class IndayHistoryGetter:
         key = self.redis_key()
         res = self.redis.zrange(key, -2, -1, withscores=False)
         if res:
-            last_tick = TickFOPv1D1.deserialize(res[0])
+            last_tick = TickFOP.deserialize(res[0])
             self.last_end_time = last_tick.datetime
 
     def print_ticks(self, ticks):
@@ -80,9 +80,9 @@ class IndayHistoryGetter:
         data: list | None = None
         if not self.last_end_time:
             data = [None]
-            self.api.ticks(
+            self.api.daily_ticks(
                 self.contract,
-                date.strftime(DATE_FORMAT_SHIOAJI),
+                date.strftime(DATE_FORMAT_DB_AND_SJ),
                 TicksQueryType.AllDay,
                 timeout=0,  # 非阻塞 timeout = 0
                 cb=self.inday_history_cb
@@ -99,9 +99,9 @@ class IndayHistoryGetter:
 
             for d in data:
                 print(f'query range: {d}')
-                self.api.ticks(
+                self.api.daily_ticks(
                     self.contract,
-                    date.strftime(DATE_FORMAT_SHIOAJI),
+                    date.strftime(DATE_FORMAT_DB_AND_SJ),
                     TicksQueryType.RangeTime,
                     time_start=d[0],
                     time_end=d[1],

@@ -3,7 +3,7 @@ from datetime import datetime, date
 
 from pandas import DataFrame
 
-from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
+from data_manager.history.history_tick_manager import HistoryTickManager
 from qclaw.backtesting.npy_cached_history_tick_manager import NpyCachedHistoryTickManager, TickSlice
 from qclaw.backtesting.npy_cache import NpyCacheManager
 from tools.plotter import plotter

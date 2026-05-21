@@ -1,4 +1,4 @@
-from data_manager.history_data_manager.history_tick_manager2._api_fetcher import ApiFetcher
+from data_manager.history.htm2._api_fetcher import ApiFetcher
 
 fst = (1, 99)
 sec = (50, 100)

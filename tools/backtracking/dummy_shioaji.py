@@ -4,7 +4,7 @@ from shioaji import Order
 from shioaji.constant import OrderState, Action
 from shioaji.position import FuturePosition, FutureProfitLoss
 
-from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
+from data_manager.history.history_tick_manager import HistoryTickManager
 from tools.backtracking.dummy_rtm import DummyRealtimeTickManager
 
 

@@ -9,7 +9,7 @@ from shioaji.data import Ticks
 from sqlalchemy import select, union_all, literal
 from sqlalchemy.orm import Session, sessionmaker, aliased
 
-from data_manager.history_data_manager.history_data_manager_base import HistoryDataManagerBase
+from data_manager.history.history_data_manager_base import HistoryDataManagerBase
 from database.schema.history_tick import HistoryTickMemo, HistoryTick
 from tools.constants import EXP86400
 from tools.date_range_utils import enumerate_dates_set_by_range

@@ -1,4 +1,4 @@
-from data_manager.history_data_manager.history_tick_manager import DailyTicks
+from data_manager.history.history_tick_manager import DailyTicks
 from tools.backtesting_context import BacktestingContext
 from tools.plotter import plotter
 

@@ -3,7 +3,7 @@ from datetime import date, timedelta, datetime
 
 from shioaji.constant import TicksQueryType
 
-from data_manager.history_data_manager.history_tick_manager2._api_fetcher import ApiFetcher
+from data_manager.history.htm2._api_fetcher import ApiFetcher
 from tools.app.app import App
 from tools.utils import tmf_r1_contract
 from tools.time_utils import sj_history_ns_to_datetime, pg_us_to_datetime, sj_history_ns_to_pg_us, \
@@ -12,7 +12,7 @@ from tools.time_utils import sj_history_ns_to_datetime, pg_us_to_datetime, sj_hi
 app = App()
 api = app.api
 contract = tmf_r1_contract(api)
-start = date(2026, 2, 17)
+start = date(2026, 4, 15)
 ticks = api.ticks(
     contract,
     start.strftime("%Y-%m-%d"),

@@ -1,28 +1,44 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from tools.constants import UTC_TZ, DEFAULT_TIMEZONE
+SJ_OFFSET_S = 28_800
+SJ_OFFSET_US = SJ_OFFSET_S * 1_000_000
+PG_EPOCH_OFFSET_S = 946_684_800
+PG_EPOCH_OFFSET_US = PG_EPOCH_OFFSET_S * 1_000_000
+PG_EPOCH_WITH_TZ_S = PG_EPOCH_OFFSET_S + SJ_OFFSET_S
+PG_EPOCH_WITH_TZ_US = PG_EPOCH_OFFSET_US + SJ_OFFSET_US
 
 
 def sj_history_ns_to_datetime(ts: int):
-    ts_posix = ts / (10 ** 9)
-    return datetime.fromtimestamp(ts_posix, tz=UTC_TZ).replace(tzinfo=DEFAULT_TIMEZONE)
+    ts //= 10 ** 9
+    ts -= SJ_OFFSET_S
+    dt = datetime.fromtimestamp(ts)
+    return dt
 
 
-def pg_us_to_datetime(ts: int):
-    ts += 946_684_800_000_000  # pg epoch 轉 unix
-    ts_posix = ts / (10 ** 6)  # to seconds
-    return datetime.fromtimestamp(ts_posix)
+def pg_us_to_unix_seconds(pg_us: int):
+    return pg_us // (10 ** 6) + PG_EPOCH_OFFSET_S
+
+
+def pg_us_to_datetime(pg_us: int):
+    unix_seconds = pg_us_to_unix_seconds(pg_us)
+    return datetime.fromtimestamp(unix_seconds)
 
 
 def sj_history_ns_to_pg_us(sj_ns: int):
     us = sj_ns // 1000  # 轉微秒
-    us -= 946_684_800_000_000  # 轉 pg epoch
-    us -= 28_800_000_000  # +8 轉 utc
-
+    us -= PG_EPOCH_WITH_TZ_US
     return us
+
+
+def datetime_to_sj_ns(dt: datetime):
+    ts = dt.timestamp()
+    ts += SJ_OFFSET_S
+    ts *= 10 ** 9
+    return ts
 
 
 def datetime_to_pg_us(dt: datetime):
-    us = dt.timestamp() * 10 ** 6
-    us -= 946_684_800_000_000  # 轉 pg epoch
-    return us
+    ts = dt.timestamp()
+    ts -= PG_EPOCH_OFFSET_S
+    ts *= 10 ** 6
+    return ts

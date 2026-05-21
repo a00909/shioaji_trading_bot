@@ -1,4 +1,4 @@
-from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
+from data_manager.history.history_tick_manager import HistoryTickManager
 from data_manager.rtm.realtime_tick_manager import RealtimeTickManager
 
 

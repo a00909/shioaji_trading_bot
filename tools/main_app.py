@@ -3,7 +3,7 @@ from strategy.runner.tmf_strategy_runner import TMFStrategyRunner
 from strategy.tools.indicator_provider.indicator_provider import IndicatorProvider
 from strategy.tools.kbar_indicators.kbar_indicator_center import KbarIndicatorCenter
 from strategy.tools.order_placer import OrderPlacer
-from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
+from data_manager.history.history_tick_manager import HistoryTickManager
 from data_manager.rtm.realtime_tick_manager import RealtimeTickManager
 from tools.app.app import App
 

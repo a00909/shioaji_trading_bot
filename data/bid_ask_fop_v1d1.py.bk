@@ -2,11 +2,11 @@ from decimal import Decimal
 
 from shioaji import BidAskFOPv1
 
-from data.datetime_comparable import DatetimeComparable
+from mixins.datetime_comparable_mixin import DatetimeComparableMixin
 from tools.constants import DEFAULT_TIMEZONE
 
 
-class BidAskFOPv1D1(BidAskFOPv1, DatetimeComparable):
+class BidAskFOPv1D1(BidAskFOPv1, DatetimeComparableMixin):
     bid_price: float
     bid_volume: int
     ask_price: float
@@ -18,7 +18,6 @@ class BidAskFOPv1D1(BidAskFOPv1, DatetimeComparable):
     ask_volume_org: list[int]
 
     def __init__(self):
-        DatetimeComparable.__init__(self, BidAskFOPv1D1)
         self.bid_volume_org = []
 
     @classmethod

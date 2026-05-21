@@ -10,7 +10,7 @@ from shioaji.constant import SecurityType
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
+from data_manager.history.history_tick_manager import HistoryTickManager
 from tools.logger.custom_logger import CustomLogger
 from tools.redis_manager import RedisManager
 

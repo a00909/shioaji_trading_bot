@@ -4,7 +4,8 @@ Donchian 回測情境基礎類別
 import sys
 import time
 
-from qclaw.backtesting.npy_cached_history_tick_manager import DailySlice, TickSlice
+from data_manager.history.statics.np_ticks import NPTicks
+from data_manager.history.statics.data import DailySlice
 from tools.backtesting_context import BacktestingContext
 
 sys.path.insert(0, r'/')
@@ -18,9 +19,6 @@ from qclaw_bk.ml_strategy.feature_builder import FeatureBuilder, FeatureConfig
 import matplotlib
 
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
-import matplotlib.dates as mdates
 
 import sys
 
@@ -37,8 +35,8 @@ class DonchianBacktestingContext(BacktestingContext):
         # init ticks
         _st_time = time.time()
         daily_slices: list[DailySlice] = self.npy_htm.get(self.contract, start, end)
-        slices: list[TickSlice] = [s.tick_slice for s in daily_slices if s.tick_slice is not None]
-        ticks = TickSlice.merge_slices(slices)
+        slices: list[NPTicks] = [s.tick_slice for s in daily_slices if s.tick_slice is not None]
+        ticks = NPTicks.merge_slices(slices)
 
         print(f'tick load consumed {time.time() - _st_time} seconds.')
 
@@ -52,8 +50,8 @@ class DonchianBacktestingContext(BacktestingContext):
 
         for daily_slice in daily_slices:
             day_labels.extend([daily_slice.date] * len(daily_slice.tick_slice))
-            daily_max = np.max(daily_slice.tick_slice.closes)
-            daily_min = np.min(daily_slice.tick_slice.closes)
+            daily_max = np.max(daily_slice.tick_slice.close)
+            daily_min = np.min(daily_slice.tick_slice.close)
             self.day_ranges[daily_slice.date] = float(daily_max - daily_min)
 
             print(f'\t{daily_slice.date}: {len(daily_slice.tick_slice)}')

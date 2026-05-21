@@ -6,7 +6,7 @@ from shioaji.position import FuturePosition
 
 from strategy.tools.order_placer import OrderPlacer
 from strategy.tools.indicator_provider.indicator_provider import IndicatorProvider
-from data_manager.history_data_manager.history_tick_manager import HistoryTickManager
+from data_manager.history.history_tick_manager import HistoryTickManager
 
 
 class AbsStrategyRunner(ABC):

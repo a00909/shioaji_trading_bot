@@ -10,7 +10,7 @@ class RedisManager:
     def __init__(self):
         self.redis = Redis(
             host=os.getenv('REDIS_HOST', 'localhost'),
-            port=os.getenv('REDIS_PORT', 6379)
+            port=int(os.getenv('REDIS_PORT', 6379))
         )
 
     def get(self, key):
