@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from qclaw.backtesting.npy_cached_history_tick_manager import NpyCachedHistoryTickManager
+from data_manager.history.htm2 import NpyCachedHistoryTickManager
 from tools.app.app import App
 from data_manager.history.kbar_manager import KBarManager
 from strategy.tools.kbar_indicators.intraday_interval_volume_avg.intraday_interval_volume_avg import (

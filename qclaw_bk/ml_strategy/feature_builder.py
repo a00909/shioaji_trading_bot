@@ -11,15 +11,16 @@ Feature Builder - ML 特徵計算模組
 - active_sell_vol = 內盤成交量（tick_type == 2）
 """
 
-import numpy as np
-import pandas as pd
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable, Optional
 
+import numpy as np
+import pandas as pd
+
+from data_manager.history.statics.np_ticks import NPTicks
 from database.schema.history_tick import HistoryTick
-from qclaw.backtesting.npy_cached_history_tick_manager import TickSlice
 
 
 @dataclass
@@ -96,7 +97,7 @@ class FeatureBuilder:
 
     def __init__(
             self,
-            ticks: list | TickSlice,
+            ticks: list | NPTicks,
             iiva_lookup: Optional[Callable[[datetime], float]] = None,
             config: Optional[FeatureConfig] = None,
     ):
@@ -112,7 +113,7 @@ class FeatureBuilder:
 
         if not ticks:
             raise Exception('no ticks given.')
-        if isinstance(ticks, TickSlice):
+        if isinstance(ticks, NPTicks):
             self._init_attrs_by_tick_slice(ticks)
         elif isinstance(ticks[0], HistoryTick):
             self._init_attrs_by_history_ticks(ticks)
@@ -122,9 +123,9 @@ class FeatureBuilder:
         # 快取計算結果
         self._cache: dict = {}
 
-    def _init_attrs_by_tick_slice(self, ticks: TickSlice):
+    def _init_attrs_by_tick_slice(self, ticks: NPTicks):
         # 解析 tick 資料
-        self._times = ticks.ts
+        self._times = ticks.ts_seconds()
         self._closes = ticks.close
         self._volumes = ticks.volume
         self._tick_types = ticks.tick_type

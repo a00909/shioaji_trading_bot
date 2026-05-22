@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 
 import numpy as np
-from shioaji.base import BaseModel
 from shioaji.data import Ticks
 
 from data_manager.history.statics.tick_field import FIELD_TYPE_MAP
-from tools.time_utils import PG_EPOCH_WITH_TZ_US
+from tools.time_utils import PG_EPOCH_WITH_TZ_US, PG_EPOCH_OFFSET_S
 
 
 @dataclass
@@ -22,6 +21,15 @@ class NPTicks:
 
     def __len__(self) -> int:
         return len(self.ts)
+
+    def __post_init__(self):
+        self._datetime = None
+        self._ts_s = None
+
+    def ts_seconds(self, reset=False):
+        if reset or not self._ts_s:
+            self._ts_s = self.ts / 10 ** 6 + PG_EPOCH_OFFSET_S
+        return self._ts_s
 
     @classmethod
     def from_ticks(cls, ticks_raw: Ticks):

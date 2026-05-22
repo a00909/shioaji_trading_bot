@@ -1,11 +1,10 @@
 from datetime import date, timedelta
 
 from psycopg import Connection
-from shioaji.data import Ticks
 
 from data_manager.history.htm2._npy_binary_packer import npy_unpack
 from data_manager.history.statics.np_ticks import NPTicks
-from data_manager.history.statics.tick_field import TICKS_FIELDS, UNPACK_STRUCT
+from data_manager.history.statics.tick_field import TICKS_FIELDS
 from tools.logger.custom_logger import CustomLogger
 
 
@@ -38,7 +37,7 @@ class DBLoader:
                     while chunk := copy.read():
                         chunks.append(chunk)
                     raw = b''.join(chunks)
-                    DBLoader._logger.info(f'{len(chunks)} chucks read. {len(raw)} bytes.')
+                    DBLoader._logger.info(f'{dt.strftime("%Y-%m-%d")}: {len(chunks)} chucks read. {len(raw)} bytes.')
                     ticks = npy_unpack(symbol, raw[19:-2])
                     data[dt] = ticks
         return data

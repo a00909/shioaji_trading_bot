@@ -1,5 +1,5 @@
 import struct
-from enum import Enum
+from enum import Enum, StrEnum
 
 import numpy as np
 
@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 
-class TickField(str, Enum):
+class TickField(StrEnum):
     """
     單一事實來源 (Single Source of Truth)
     同時搞定：屬性名、NumPy 型態、struct 格式、二進位長度
@@ -33,6 +33,8 @@ class TickField(str, Enum):
         obj = str.__new__(cls, prop_name)
         obj._value_ = prop_name
         return obj
+
+
 
     def __init__(self, prop_name: str, np_type: type, struct_fmt: str, byte_len: int, np_fmt: str):
         # 2. 把其餘硬核元資料綁在成員身上

@@ -1,22 +1,21 @@
 from datetime import date, time
 
+from psycopg import Connection
 from sqlalchemy import select
 
 from data_manager.history.statics.memo_protocols import MemoProtocol
 from tools.utils import get_now
 
 
-def get_missing_dates(session, symbol, memo_type: type[MemoProtocol], dates: set[date]):
-    # todo: 這裡改用psycopg
-    stmt = select(memo_type.date).where(
-        memo_type.symbol == symbol,
-        memo_type.date.in_(dates),
-    )
-    memo_dates = session.execute(stmt).scalars().all()
-    existing_dates_set = set(memo_dates)
-
-    missing_dates = dates - existing_dates_set
-    return missing_dates
+def get_missing_dates(conn: Connection, symbol: str, table_name: str, dates: set[date]) -> set[date]:
+    """查詢 DB 中已存在的日期，回傳缺失的日期集合。"""
+    if not dates:
+        return set()
+    with conn.cursor() as cur:
+        sql = "SELECT date FROM {0} WHERE symbol = %s AND date = ANY(%s)".format(table_name)
+        cur.execute(sql, (symbol, list(dates)))
+        existing = {row[0] for row in cur}
+    return dates - existing
 
 
 def range_check(start: date, end: date = None):

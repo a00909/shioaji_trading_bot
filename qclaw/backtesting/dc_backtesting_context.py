@@ -34,7 +34,8 @@ class DonchianBacktestingContext(BacktestingContext):
 
         # init ticks
         _st_time = time.time()
-        daily_slices: list[DailySlice] = self.npy_htm.get(self.contract, start, end)
+        with self.app.raw_connection as conn:
+            daily_slices: list[DailySlice] = self.npy_htm.get(conn,self.contract, start, end)
         slices: list[NPTicks] = [s.tick_slice for s in daily_slices if s.tick_slice is not None]
         ticks = NPTicks.merge_slices(slices)
 

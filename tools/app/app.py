@@ -1,6 +1,7 @@
 import atexit
 import os
 import threading
+from contextlib import closing
 
 import shioaji as sj
 from dotenv import load_dotenv
@@ -95,3 +96,7 @@ class App:
         if not self._history_tick_manager:
             self._history_tick_manager = HistoryTickManager(self.api, self.redis, self.session_maker)
         return self._history_tick_manager
+
+    @property
+    def raw_connection(self):
+        return closing(self.engine.raw_connection())
