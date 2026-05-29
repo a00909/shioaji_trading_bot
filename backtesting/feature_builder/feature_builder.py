@@ -12,37 +12,22 @@ Feature Builder - ML 特徵計算模組
 """
 
 from collections import deque
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable, Optional
 
 import numpy as np
 import pandas as pd
 
+from backtesting.feature_builder._feature_calculators.volume_ratio import volume_ratio
+from backtesting.feature_builder._feature_calculators.momentum import momentum
+from backtesting.feature_builder._feature_calculators.sd import sd
+from backtesting.feature_builder._feature_config import FeatureConfig
+from backtesting.feature_builder._feature_calculators.donchian import donchian
+from backtesting.feature_builder._feature_calculators.net_buy_ratio import net_buy_ratio
+from backtesting.feature_builder.indicator_proxy import IndicatorsProxy
+from backtesting.feature_builder.labeler import pnl_label
 from data_manager.history.statics.np_ticks import NPTicks
 from database.schema.history_tick import HistoryTick
-
-
-@dataclass
-class FeatureConfig:
-    """特徵計算設定"""
-    # 時間窗口設定
-    net_buy_window_s: timedelta = timedelta(minutes=15)  # 短
-    net_buy_window_m: timedelta = timedelta(minutes=30)  # 中
-    net_buy_window_l: timedelta = timedelta(minutes=60)  # 長
-    sd_window: timedelta = timedelta(minutes=45)  # 標準差窗口
-    momentum_window_short: timedelta = timedelta(minutes=5)  # 短動量
-    momentum_window_long: timedelta = timedelta(minutes=15)  # 長動量
-
-    # IIVA 設定
-    iiva_length: timedelta = timedelta(days=5)
-    iiva_interval_minutes: int = 5
-
-    # volume_ratio 窗口
-    volume_ratio_window: timedelta = timedelta(minutes=5)
-
-    # Donchian 累計設定
-    donchian_window: timedelta = timedelta(minutes=30)
 
 
 class FeatureBuilder:
@@ -92,7 +77,7 @@ class FeatureBuilder:
         'donchian_la',
         'donchian_dir',
         'donchian_h',
-        'donchian_l',
+        'donchian_l'
     ]
 
     def __init__(
@@ -153,51 +138,6 @@ class FeatureBuilder:
         :param config: 特徵計算設定
         """
 
-        # 建立一個 proxy 物件，委託給 DayIndicators 的方法
-        class IndicatorsProxy:
-            def __init__(self, ind):
-                self._ind = ind
-                self._n = ind.n
-                self._times = ind.times
-                self._closes = ind.closes
-                self._volumes = ind.volumes
-                self._tick_types = ind.tick_types
-
-            @property
-            def n(self):
-                return self._n
-
-            def _net_buy_ratio(self, window: timedelta) -> np.ndarray:
-                """計算 net_buy_ratio，委託給內部方法"""
-                return self._compute_net_buy_ratio(window)
-
-            def _compute_net_buy_ratio(self, window: timedelta) -> np.ndarray:
-                seconds = window.total_seconds()
-                # tick_type == 1: 外盤 = 買方主動
-                # tick_type == 2: 內盤 = 賣方主動
-                active_buy_vol = np.where(self._tick_types == 1, self._volumes, 0)
-                active_sell_vol = np.where(self._tick_types == 2, self._volumes, 0)
-
-                active_buy_cum = np.zeros(self._n + 1, dtype=np.int64)
-                active_sell_cum = np.zeros(self._n + 1, dtype=np.int64)
-                np.cumsum(active_buy_vol, out=active_buy_cum[1:])
-                np.cumsum(active_sell_vol, out=active_sell_cum[1:])
-
-                result = np.full(self._n, 0.0, dtype=np.float64)
-                times = self._times
-
-                for i in range(self._n):
-                    hi = times[i]
-                    lo = hi - seconds
-                    left = int(np.searchsorted(times, lo, side='right'))
-                    right = i + 1
-                    bv = active_buy_cum[right] - active_buy_cum[left]
-                    sv = active_sell_cum[right] - active_sell_cum[left]
-                    total = bv + sv
-                    result[i] = (bv - sv) / total if total > 0 else 0.0
-
-                return result
-
         proxy = IndicatorsProxy(indicators)
         fb = cls.__new__(cls)
         fb._ticks = []
@@ -222,7 +162,7 @@ class FeatureBuilder:
     #  核心計算方法
     # ─────────────────────────────────────────────
 
-    def build(self, feature_names: list[str] = None) -> pd.DataFrame:
+    def build(self, feature_names: list[str] = None, with_label=False) -> pd.DataFrame:
         """
         計算所有特徵，回傳 DataFrame。
 
@@ -260,18 +200,11 @@ class FeatureBuilder:
                     raise Exception("Unknown feature: {}".format(n))
                 data[n] = func_map[n]()
 
+        if with_label:
+            data['max_fav'] = self.max_fav()
+            data['max_adv'] = self.max_adv()
+
         return pd.DataFrame(data, index=self._times)
-
-    def build_with_labels(self, labels: np.ndarray) -> pd.DataFrame:
-        """
-        計算特徵並附加標籤。
-
-        :param labels: 標籤陣列（與 tick 數量相同）
-        :return: 含標籤的 DataFrame
-        """
-        df = self.build()
-        df['label'] = labels
-        return df
 
     # ─────────────────────────────────────────────
     #  個別特徵計算
@@ -290,41 +223,11 @@ class FeatureBuilder:
         return self._net_buy_ratio(self._config.net_buy_window_l)
 
     def _net_buy_ratio(self, window: timedelta) -> np.ndarray:
-        """
-        計算滾動窗口內的淨買比率。
-
-        net_buy_ratio = (active_buy_vol - active_sell_vol) / total_vol
-        > 0: 買方主動（外盤多）
-        < 0: 賣方主動（內盤多）
-        """
         cache_key = f'net_buy_ratio_{window}'
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        seconds = window.total_seconds()
-
-        # tick_type == 1: 外盤 = 買方主動
-        # tick_type == 2: 內盤 = 賣方主動
-        active_buy_vol = np.where(self._tick_types == 1, self._volumes, 0)
-        active_sell_vol = np.where(self._tick_types == 2, self._volumes, 0)
-
-        active_buy_cum = np.zeros(self._n + 1, dtype=np.int64)
-        active_sell_cum = np.zeros(self._n + 1, dtype=np.int64)
-        np.cumsum(active_buy_vol, out=active_buy_cum[1:])
-        np.cumsum(active_sell_vol, out=active_sell_cum[1:])
-
-        result = np.full(self._n, 0.0, dtype=np.float64)
-
-        for i in range(self._n):
-            hi = self._times[i]
-            lo = hi - seconds
-            left = int(np.searchsorted(self._times, lo, side='right'))
-            right = i + 1
-
-            bv = active_buy_cum[right] - active_buy_cum[left]
-            sv = active_sell_cum[right] - active_sell_cum[left]
-            total = bv + sv
-            result[i] = (bv - sv) / total if total > 0 else 0.0
+        result = net_buy_ratio(self._n, window.total_seconds(), self.times, self._tick_types, self._volumes)
 
         self._cache[cache_key] = result
         return result
@@ -369,45 +272,15 @@ class FeatureBuilder:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        # rolling_vol_sum：過去5分鐘內所有tick的成交量總和
-        rolling_vol_sum = self._rolling_vol_sum_window(
-            self._config.volume_ratio_window
-        )
-
-        if self._iiva_lookup is None:
-            self._cache[cache_key] = np.ones(self._n, dtype=np.float64)
-            return self._cache[cache_key]
-
-        # 建立 IIVA 查詢表
-        iiva_array = np.full(self._n, 1.0, dtype=np.float64)
-        for i in range(self._n):
-            ts = datetime.fromtimestamp(self._times[i])
-            aligned = ts.replace(second=0, microsecond=0)
-            iiva_array[i] = self._iiva_lookup(aligned)
-
-        result = np.where(
-            iiva_array > 0,
-            rolling_vol_sum / iiva_array,
-            1.0
+        result = volume_ratio(
+            self._n,
+            self._config.volume_ratio_window.total_seconds(),
+            self._times,
+            self._volumes,
+            self._iiva_lookup
         )
 
         self._cache[cache_key] = result
-        return result
-
-    def _rolling_vol_sum_window(self, window: timedelta) -> np.ndarray:
-        """滾動窗口內的成交量總和（O(n) 累積和技巧）"""
-        seconds = window.total_seconds()
-        result = np.full(self._n, 0.0, dtype=np.float64)
-        cum_vol = np.zeros(self._n + 1, dtype=np.int64)
-        np.cumsum(self._volumes, out=cum_vol[1:])
-
-        for i in range(self._n):
-            hi = self._times[i]
-            lo = hi - seconds
-            left = int(np.searchsorted(self._times, lo, side='right'))
-            right = i + 1
-            result[i] = cum_vol[right] - cum_vol[left]
-
         return result
 
     def sd(self) -> np.ndarray:
@@ -416,28 +289,7 @@ class FeatureBuilder:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        window = self._config.sd_window
-        seconds = window.total_seconds()
-        result = np.full(self._n, 0.0, dtype=np.float64)
-
-        cum_c = np.zeros(self._n + 1, dtype=np.float64)
-        cum_c2 = np.zeros(self._n + 1, dtype=np.float64)
-        np.cumsum(self._closes, out=cum_c[1:])
-        np.cumsum(self._closes ** 2, out=cum_c2[1:])
-
-        for i in range(self._n):
-            lo = self._times[i] - seconds
-            left = int(np.searchsorted(self._times, lo, side='right'))
-            right = i + 1
-            n = right - left
-            if n <= 1:
-                result[i] = 0.0
-                continue
-
-            mean = (cum_c[right] - cum_c[left]) / n
-            mean2 = (cum_c2[right] - cum_c2[left]) / n
-            var = mean2 - mean * mean
-            result[i] = np.sqrt(var) if var > 0 else 0.0
+        result = sd(self._n, self._config.sd_window.total_seconds(), self._times, self._closes)
 
         self._cache[cache_key] = result
         return result
@@ -451,27 +303,7 @@ class FeatureBuilder:
         return self._momentum(self._config.momentum_window_long)
 
     def _momentum(self, window: timedelta) -> np.ndarray:
-        """
-        計算價格動量（相對變化率）。
-
-        momentum = (current_price - price_N_minutes_ago) / price_N_minutes_ago
-        """
-        seconds = window.total_seconds()
-        result = np.full(self._n, 0.0, dtype=np.float64)
-
-        for i in range(self._n):
-            hi = self._times[i]
-            lo = hi - seconds
-            left = int(np.searchsorted(self._times, lo, side='right'))
-
-            if left < i:
-                past_price = self._closes[left]
-                if past_price > 0:
-                    result[i] = (self._closes[i] - past_price) / past_price
-                else:
-                    result[i] = 0.0
-
-        return result
+        return momentum(self._n, window.total_seconds(), self._times, self._closes)
 
     def bid_ask_diff(self) -> np.ndarray:
         """買賣價差（ask_price - bid_price）"""
@@ -500,10 +332,6 @@ class FeatureBuilder:
             # 轉換為台灣時區（已在校驗資料中處理）
             result[i] = dt.hour * 60 + dt.minute
         return result
-
-    # ─────────────────────────────────────────────
-    #  多時間框架特徵（新增）
-    # ─────────────────────────────────────────────
 
     # ─────────────────────────────────────────────
     #  Donchian 累計特徵
@@ -535,98 +363,42 @@ class FeatureBuilder:
         return l
 
     def _donchian_accumulation(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """
-        單調雙端佇列實作滾動 Donchian Channel + ha/la 累計。
-
-        規則：
-          price > h 且 la == 0 → ha += 1, h = price
-          price > h 且 la != 0 → ha = 1, la = 0, h = price
-          price < l 且 ha == 0 → la += 1, l = price
-          price < l 且 ha != 0 → la = 1, ha = 0, l = price
-
-        視窗過期時，h/l 由單調 deque 動態維護。
-        時間複雜度：O(n)，每個元素最多進 deque 一次。
-        """
         cache_key = 'donchian_accumulation'
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        n = self._n
-        seconds = self._config.donchian_window.total_seconds()
-        prices = self._closes
-        times = self._times
-
-        h_arr = np.zeros(n, dtype=np.float64)
-        l_arr = np.zeros(n, dtype=np.float64)
-        ha_arr = np.zeros(n, dtype=np.float64)
-        la_arr = np.zeros(n, dtype=np.float64)
-        dir_arr = np.zeros(n, dtype=np.float64)
-
-        # 單調 deque：(ts, price)
-        h_q: deque = deque()  # 遞減，前端 = 視窗 max
-        l_q: deque = deque()  # 遞增，前端 = 視窗 min
-
-        ha = la = 0
-        direction = 0  # 1=up, -1=down, 0=neutral
-
-        for i in range(n):
-            ts = times[i]
-            price = prices[i]
-            window_left = ts - seconds
-
-            # 1. 移除過期元素（從前端）
-            while h_q and h_q[0][0] < window_left:
-                h_q.popleft()
-            while l_q and l_q[0][0] < window_left:
-                l_q.popleft()
-
-            # 2. 取出視窗 max / min（插入新 tick 之前的值）
-            if h_q:
-                h = h_q[0][1]
-            else:
-                h = price  # deque 為空，設為當前價格
-
-            if l_q:
-                l = l_q[0][1]
-            else:
-                l = price  # deque 為空，設為當前價格
-
-            # 3. 套用 4 條規則更新 ha / la / dir（比較的是舊的 h/l）
-            if price > h:
-                if la == 0:
-                    ha += 1
-                else:
-                    ha = 1
-                    la = 0
-                direction = 1
-            elif price < l:
-                if ha == 0:
-                    la += 1
-                else:
-                    la = 1
-                    ha = 0
-                direction = -1
-            # else: 區間內，不變
-
-            # 4. 維護單調性 + 插入新元素
-            # h_q（遞減）：新値比後端大就 pop 後端
-            while h_q and h_q[-1][1] <= price:
-                h_q.pop()
-            h_q.append((ts, price))
-
-            # l_q（遞增）：新値比後端小就 pop 後端
-            while l_q and l_q[-1][1] >= price:
-                l_q.pop()
-            l_q.append((ts, price))
-
-            h_arr[i] = h
-            l_arr[i] = l
-            ha_arr[i] = ha
-            la_arr[i] = la
-            dir_arr[i] = direction
+        ha_arr, la_arr, dir_arr, h_arr, l_arr = donchian(
+            self._n,
+            self._config.donchian_window.total_seconds(),
+            self._closes,
+            self._times
+        )
 
         self._cache[cache_key] = (ha_arr, la_arr, dir_arr, h_arr, l_arr)
         return ha_arr, la_arr, dir_arr, h_arr, l_arr
+
+    # ─────────────────────────────────────────────
+    #  label
+    # ─────────────────────────────────────────────
+
+    def pnl_label(self):
+        cache_key = 'pnl_label'
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
+        future_max, future_min, upside, downside, valid_mask = pnl_label(
+            self._closes, self._times, self._config.pnl_label_window.total_seconds())
+
+        self._cache[cache_key] = (future_max, future_min, upside, downside, valid_mask)
+        return future_max, future_min, upside, downside, valid_mask
+
+    def max_fav(self):
+        _, _, mf, _, _ = self.pnl_label()
+        return mf
+
+    def max_adv(self):
+        _, _, _, ma, _ = self.pnl_label()
+        return ma
 
     # ─────────────────────────────────────────────
     #  工具方法

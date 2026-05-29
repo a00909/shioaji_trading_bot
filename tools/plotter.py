@@ -16,14 +16,14 @@ from collections import defaultdict
 
 
 class Plotter:
-    def __init__(self):
+    def __init__(self, set_active=False):
         """初始化 Plotter 類別，準備存儲點的資料結構"""
         self.data = defaultdict(list)  # 儲存 key-value 對，key 為 str，value 為點列表
         self.colors = {}  # 用於記錄每個 key 的顏色
         self.point_only = {}
         self.key_to_chart_idx = {}
         self.color_cycle = itertools.cycle(plt.cm.tab10.colors)  # 使用固定的顏色循環
-        self.is_active = False
+        self.is_active = set_active
         self.chart_amount = 1
         self.point_texts: dict[str, list] = {}
         self.point_pos: dict[str, list] = {}

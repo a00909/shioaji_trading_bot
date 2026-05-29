@@ -15,10 +15,8 @@ import pandas as pd
 
 from datetime import timedelta, date
 
-from qclaw_bk.ml_strategy.feature_builder import FeatureBuilder, FeatureConfig
-import matplotlib
-
-matplotlib.use('Agg')
+from backtesting.feature_builder.feature_builder import FeatureBuilder
+from backtesting.feature_builder._feature_config import FeatureConfig
 
 import sys
 
@@ -26,7 +24,7 @@ sys.path.insert(0, r'C:\Repos\shioaji_trading')
 
 
 class DonchianBacktestingContext(BacktestingContext):
-    def __init__(self, start: date = None, end: date = None):
+    def __init__(self, start: date, end: date, with_label=False):
         super().__init__()
 
         day_labels = []
@@ -35,7 +33,7 @@ class DonchianBacktestingContext(BacktestingContext):
         # init ticks
         _st_time = time.time()
         with self.app.raw_connection as conn:
-            daily_slices: list[DailySlice] = self.npy_htm.get(conn,self.contract, start, end)
+            daily_slices: list[DailySlice] = self.npy_htm.get(conn, self.contract, start, end)
         slices: list[NPTicks] = [s.tick_slice for s in daily_slices if s.tick_slice is not None]
         ticks = NPTicks.merge_slices(slices)
 
@@ -46,7 +44,7 @@ class DonchianBacktestingContext(BacktestingContext):
         fb = FeatureBuilder(ticks, self.iiva_lookup, FeatureConfig(
             donchian_window=timedelta(seconds=1800),
         ))
-        f = fb.build(['price', 'donchian_ha', 'donchian_la', 'donchian_h', 'donchian_l'])
+        f = fb.build(['price', 'donchian_ha', 'donchian_la', 'donchian_h', 'donchian_l'], with_label)
         print(f'feature build consumed {time.time() - _st_time} seconds.')
 
         for daily_slice in daily_slices:
@@ -65,6 +63,8 @@ class DonchianBacktestingContext(BacktestingContext):
         self.ls = f['donchian_l'].values.astype(np.float64)
         self.days = np.array(day_labels, dtype=object)
         self.n_total = len(self.prices)
+        self.vol = ticks.volume
+        self.features = f
 
         # datetime index
         idx_raw = pd.to_datetime(self.times, unit='s')
