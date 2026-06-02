@@ -56,11 +56,11 @@ class DonchianBacktestingContext(BacktestingContext):
             print(f'\t{daily_slice.date}: {len(daily_slice.tick_slice)}')
 
         self.times = fb.times.astype(np.float64)
-        self.prices = f['price'].values.astype(np.float64)
-        self.has = f['donchian_ha'].values.astype(np.float64)
-        self.las = f['donchian_la'].values.astype(np.float64)
-        self.hs = f['donchian_h'].values.astype(np.float64)
-        self.ls = f['donchian_l'].values.astype(np.float64)
+        self.prices = f['price'].astype(np.float64)
+        self.has = f['donchian_ha'].astype(np.float64)
+        self.las = f['donchian_la'].astype(np.float64)
+        self.hs = f['donchian_h'].astype(np.float64)
+        self.ls = f['donchian_l'].astype(np.float64)
         self.days = np.array(day_labels, dtype=object)
         self.n_total = len(self.prices)
         self.vol = ticks.volume

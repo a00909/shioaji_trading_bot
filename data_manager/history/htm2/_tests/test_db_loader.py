@@ -12,7 +12,7 @@ symbol = 'TMFR1'
 db_loader = DBLoader()
 
 with closing(app.engine.raw_connection()) as conn:
-    db_data = db_loader.load(conn, symbol, {date(2026, 5, 21)})
+    db_data = db_loader.load(conn, symbol, {date(2025, 11, 18)})
 
 plotter.active()
 

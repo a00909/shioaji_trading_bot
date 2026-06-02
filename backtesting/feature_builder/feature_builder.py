@@ -13,21 +13,45 @@ Feature Builder - ML 特徵計算模組
 
 from collections import deque
 from datetime import datetime, timedelta
+from functools import wraps
 from typing import Callable, Optional
 
 import numpy as np
 import pandas as pd
 
+from backtesting.feature_builder._feature_calculators.bid_ask_imbalance import bid_ask_features, compute_imb_change_rate
+from backtesting.feature_builder._feature_calculators.time_feature import extract_time_features_util
 from backtesting.feature_builder._feature_calculators.volume_ratio import volume_ratio
 from backtesting.feature_builder._feature_calculators.momentum import momentum
 from backtesting.feature_builder._feature_calculators.sd import sd
 from backtesting.feature_builder._feature_config import FeatureConfig
 from backtesting.feature_builder._feature_calculators.donchian import donchian
 from backtesting.feature_builder._feature_calculators.net_buy_ratio import net_buy_ratio
+from backtesting.feature_builder.feature_name import FeatureName
 from backtesting.feature_builder.indicator_proxy import IndicatorsProxy
 from backtesting.feature_builder.labeler import pnl_label
 from data_manager.history.statics.np_ticks import NPTicks
 from database.schema.history_tick import HistoryTick
+
+
+def cache_result(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        cache_key = (
+            func.__name__,
+            args,
+            tuple(sorted(kwargs.items()))
+        )
+
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
+        result = func(self, *args, **kwargs)
+
+        self._cache[cache_key] = result
+        return result
+
+    return wrapper
 
 
 class FeatureBuilder:
@@ -58,27 +82,6 @@ class FeatureBuilder:
     X = features.to_numpy()
     ```
     """
-
-    FEATURE_NAMES = [
-        'net_buy_ratio_s',
-        'net_buy_ratio_m',
-        'net_buy_ratio_l',
-        'volume_ratio',
-        'sd',
-        'momentum_short',
-        'momentum_long',
-        'bid_ask_diff',
-        'bid_ask_imbalance',
-        'price',
-        'hour_minute',
-        'net_buy_ratio_change',
-        'net_buy_ratio_regime',
-        'donchian_ha',
-        'donchian_la',
-        'donchian_dir',
-        'donchian_h',
-        'donchian_l'
-    ]
 
     def __init__(
             self,
@@ -162,9 +165,9 @@ class FeatureBuilder:
     #  核心計算方法
     # ─────────────────────────────────────────────
 
-    def build(self, feature_names: list[str] = None, with_label=False) -> pd.DataFrame:
+    def build(self, feature_names: list[str] = None, with_label=False) -> dict:
         """
-        計算所有特徵，回傳 DataFrame。
+        計算所有特徵，回傳 dict[str,ndarray]。
 
         :return: 特徵矩陣，每列是一個 tick，每行是一個特徵
         """
@@ -179,8 +182,7 @@ class FeatureBuilder:
             'momentum_short': self.momentum_short,
             'momentum_long': self.momentum_long,
             'bid_ask_diff': self.bid_ask_diff,
-            'bid_ask_imbalance': self.bid_ask_imbalance,
-            'hour_minute': self._hour_minute,
+            'bid_ask_imbalance': self.bid_ask_features,
             'net_buy_ratio_change': self.net_buy_ratio_change,
             'net_buy_ratio_regime': self.net_buy_ratio_regime,
             'donchian_ha': self.donchian_ha,
@@ -188,6 +190,15 @@ class FeatureBuilder:
             'donchian_dir': self.donchian_dir,
             'donchian_h': self.donchian_h,
             'donchian_l': self.donchian_l,
+            FeatureName.SIN_TIME: lambda: self._time()[FeatureName.SIN_TIME],
+            FeatureName.COS_TIME: lambda: self._time()[FeatureName.COS_TIME],
+            FeatureName.IS_OP_30: lambda: self._time()[FeatureName.IS_OP_30],
+            FeatureName.IS_CL_30: lambda: self._time()[FeatureName.IS_CL_30],
+            FeatureName.DIR_SD: self.directional_sd,
+            FeatureName.DC_BRKOUT_ACCU: self.dc_breakout_accu,
+            'dc_energy': self.dc_energy,
+            'ba_imb': self.ba_imb,
+            'ba_imb_cr': self.ba_imb_cr,
         }
 
         if not feature_names:
@@ -203,8 +214,10 @@ class FeatureBuilder:
         if with_label:
             data['max_fav'] = self.max_fav()
             data['max_adv'] = self.max_adv()
+            data['valid_mask'] = self.valid_mask()
 
-        return pd.DataFrame(data, index=self._times)
+        # return pd.DataFrame(data, index=self._times)
+        return data
 
     # ─────────────────────────────────────────────
     #  個別特徵計算
@@ -222,14 +235,10 @@ class FeatureBuilder:
         """10分鐘淨買比率"""
         return self._net_buy_ratio(self._config.net_buy_window_l)
 
+    @cache_result
     def _net_buy_ratio(self, window: timedelta) -> np.ndarray:
-        cache_key = f'net_buy_ratio_{window}'
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+        result = net_buy_ratio(self.times, self._tick_types, self._volumes, window.total_seconds())
 
-        result = net_buy_ratio(self._n, window.total_seconds(), self.times, self._tick_types, self._volumes)
-
-        self._cache[cache_key] = result
         return result
 
     def net_buy_ratio_change(self) -> np.ndarray:
@@ -262,16 +271,8 @@ class FeatureBuilder:
         result[aligned] = nbr_l[aligned] - nbr_s[aligned]
         return result
 
+    @cache_result
     def volume_ratio(self) -> np.ndarray:
-        """
-        量比 = 滾動窗口內成交量總和 / IIVA（歷史同期均量）
-
-        若無 iiva_lookup，回傳 1.0
-        """
-        cache_key = 'volume_ratio'
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-
         result = volume_ratio(
             self._n,
             self._config.volume_ratio_window.total_seconds(),
@@ -279,20 +280,15 @@ class FeatureBuilder:
             self._volumes,
             self._iiva_lookup
         )
-
-        self._cache[cache_key] = result
         return result
 
+    @cache_result
     def sd(self) -> np.ndarray:
-        """45分鐘滾動標準差"""
-        cache_key = 'sd'
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-
         result = sd(self._n, self._config.sd_window.total_seconds(), self._times, self._closes)
-
-        self._cache[cache_key] = result
         return result
+
+    def directional_sd(self):
+        return self.donchian_dir() * self.sd()
 
     def momentum_short(self) -> np.ndarray:
         """5分鐘價格動量（變化率）"""
@@ -309,29 +305,39 @@ class FeatureBuilder:
         """買賣價差（ask_price - bid_price）"""
         return self._ask_prices - self._bid_prices
 
-    def bid_ask_imbalance(self) -> np.ndarray:
-        """
-        買賣量差比率 = (bid_volume - ask_volume) / (bid_volume + ask_volume)
-        > 0: 買方掛單多
-        < 0: 賣方掛單多
-        """
-        total = self._bid_volumes + self._ask_volumes
-        with np.errstate(invalid='ignore', divide='ignore'):
-            result = np.where(
-                total > 0,
-                (self._bid_volumes - self._ask_volumes) / total,
-                0.0
-            )
-        return result
+    @cache_result
+    def bid_ask_features(self):
+        imb_windowed, mid_windowed, spread_windowed = bid_ask_features(
+            self._n,
+            self._bid_volumes,
+            self._ask_volumes,
+            self._bid_prices,
+            self._ask_prices,
+            self._times,
+            self._config.bid_ask_imb_window.total_seconds())
+        return imb_windowed, mid_windowed, spread_windowed
 
-    def _hour_minute(self) -> np.ndarray:
+    def ba_imb(self):
+        imb, _, _ = self.bid_ask_features()
+        return imb
+
+    def ba_mid(self):
+        _, mid, _ = self.bid_ask_features()
+        return mid
+
+    def ba_imb_cr(self):
+        cr = compute_imb_change_rate(
+            self._n,
+            self._times,
+            self.ba_imb()
+        )
+        return cr
+
+    @cache_result
+    def _time(self) -> dict[str, np.ndarray]:
         """時間特徵（轉換為分鐘數：hour * 60 + minute）"""
-        result = np.zeros(self._n, dtype=np.float64)
-        for i in range(self._n):
-            dt = datetime.fromtimestamp(self._times[i])
-            # 轉換為台灣時區（已在校驗資料中處理）
-            result[i] = dt.hour * 60 + dt.minute
-        return result
+        tf = extract_time_features_util(self._times)
+        return tf
 
     # ─────────────────────────────────────────────
     #  Donchian 累計特徵
@@ -362,34 +368,38 @@ class FeatureBuilder:
         _, _, _, _, l = self._donchian_accumulation()
         return l
 
-    def _donchian_accumulation(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        cache_key = 'donchian_accumulation'
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+    def dc_breakout_accu(self):
+        return self.donchian_ha() - self.donchian_la()
+
+    def dc_energy(self):
+        return self.donchian_ha() + self.donchian_la()
+
+    @cache_result
+    def _donchian_accumulation(self, use_ba_mid=False) -> tuple[
+        np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+
+        if use_ba_mid:
+            p = self.ba_imb()
+        else:
+            p = self._closes
 
         ha_arr, la_arr, dir_arr, h_arr, l_arr = donchian(
             self._n,
             self._config.donchian_window.total_seconds(),
-            self._closes,
+            p,
             self._times
         )
-
-        self._cache[cache_key] = (ha_arr, la_arr, dir_arr, h_arr, l_arr)
         return ha_arr, la_arr, dir_arr, h_arr, l_arr
 
     # ─────────────────────────────────────────────
     #  label
     # ─────────────────────────────────────────────
 
+    @cache_result
     def pnl_label(self):
-        cache_key = 'pnl_label'
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-
         future_max, future_min, upside, downside, valid_mask = pnl_label(
             self._closes, self._times, self._config.pnl_label_window.total_seconds())
 
-        self._cache[cache_key] = (future_max, future_min, upside, downside, valid_mask)
         return future_max, future_min, upside, downside, valid_mask
 
     def max_fav(self):
@@ -399,6 +409,10 @@ class FeatureBuilder:
     def max_adv(self):
         _, _, _, ma, _ = self.pnl_label()
         return ma
+
+    def valid_mask(self):
+        _, _, _, _, valid_mask = self.pnl_label()
+        return valid_mask
 
     # ─────────────────────────────────────────────
     #  工具方法
@@ -418,10 +432,6 @@ class FeatureBuilder:
     def closes(self) -> np.ndarray:
         """回傳收盤價陣列"""
         return self._closes
-
-    def get_feature_names(self) -> list[str]:
-        """回傳特徵名稱列表"""
-        return self.FEATURE_NAMES.copy()
 
     def summary(self) -> dict:
         """回傳特徵統計摘要"""

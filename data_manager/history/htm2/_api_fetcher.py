@@ -50,23 +50,27 @@ class ApiFetcher:
             TicksQueryType.AllDay,
         )
 
-        # 判斷取回資料跟所需資料的交集範圍
-        pre_start = start - timedelta(days=1)
-        st1 = ticks.ts[0]
-        ed1 = ticks.ts[-1]
-        st2 = datetime_to_sj_ns(datetime(pre_start.year, pre_start.month, pre_start.day, 15, 00, 00))
-        ed2 = datetime_to_sj_ns(datetime(start.year, start.month, start.day, 13, 45, 5))
-        is_ov, rng = ApiFetcher._get_overlap_interval(st1, ed1, st2, ed2)
+        if ticks.ts:
 
-        if is_ov:  # 有交集
-            st_ov, ed_ov = rng
-            if st_ov == st1 and ed_ov == ed1:  # 如果取交集範圍 == api 回傳資料範圍則無須切片
-                pass
+            # 判斷取回資料跟所需資料的交集範圍
+            pre_start = start - timedelta(days=1)
+            st1 = ticks.ts[0]
+            ed1 = ticks.ts[-1]
+            st2 = datetime_to_sj_ns(datetime(pre_start.year, pre_start.month, pre_start.day, 15, 00, 00))
+            ed2 = datetime_to_sj_ns(datetime(start.year, start.month, start.day, 13, 45, 5))
+            is_ov, rng = ApiFetcher._get_overlap_interval(st1, ed1, st2, ed2)
+
+            if is_ov:  # 有交集
+                st_ov, ed_ov = rng
+                if st_ov == st1 and ed_ov == ed1:  # 如果取交集範圍 == api 回傳資料範圍則無須切片
+                    pass
+                else:
+                    left_idx = bisect_left(ticks.ts, st_ov)
+                    right_idx = bisect_right(ticks.ts, ed_ov)
+                    ApiFetcher._slice_ticks_inplace(ticks, left_idx, right_idx)
+                np_ticks = NPTicks.from_ticks(ticks)
             else:
-                left_idx = bisect_left(ticks.ts, st_ov)
-                right_idx = bisect_right(ticks.ts, ed_ov)
-                ApiFetcher._slice_ticks_inplace(ticks, left_idx, right_idx)
-            np_ticks = NPTicks.from_ticks(ticks)
+                np_ticks = None
         else:
             np_ticks = None
 
@@ -122,7 +126,7 @@ class ApiFetcher:
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {dt: executor.submit(self._fetch_single, contract, dt, data_queue) for dt in dates}
         for k, v in futures.items():
-            futures[k] = v.result()
+            futures[k] = v.result()[1]
 
         data_queue.put(None)
 

@@ -192,7 +192,7 @@ class DonchianStatAnalyzer:
     TP_GRID = [10, 15, 20, 30, 40, 50, 60, 80, 100, 150, 300, 500, 800, 1000]
     SL_GRID = [10, 15, 20, 30, 40, 50, 60, 80, 100, 150]
     IGNORE_PENALTY_ENABLED = True
-    IGNORE_PENALTY_POINTS = -45
+    IGNORE_PENALTY_POINTS = -23
 
     def __init__(
         self,

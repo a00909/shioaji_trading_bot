@@ -27,9 +27,14 @@ class NPTicks:
         self._ts_s = None
 
     def ts_seconds(self, reset=False):
-        if reset or not self._ts_s:
+        if reset or self._ts_s is None:
             self._ts_s = self.ts / 10 ** 6 + PG_EPOCH_OFFSET_S
         return self._ts_s
+
+    def datetime(self, reset=False):
+        if reset or self._datetime is None:
+            self._datetime = self.ts_seconds().astype('datetime64[s]') + np.timedelta64(8, 'h')
+        return self._datetime
 
     @classmethod
     def from_ticks(cls, ticks_raw: Ticks):
