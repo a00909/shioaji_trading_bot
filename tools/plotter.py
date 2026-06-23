@@ -69,10 +69,9 @@ class Plotter:
             if point_text:
                 self.point_texts[key].append(point_text)
 
-
         self.data[key].append(point)  # 添加點到對應的 key
 
-    def plot(self):
+    def plot(self, block=True):
         """繪圖，將收集的點繪製成圖表並顯示，省略空區間"""
         if not self.data:
             raise ValueError("No data to plot. Add points first.")
@@ -123,8 +122,6 @@ class Plotter:
                 markersize = 0
                 alpha = 0.7
 
-
-
             ax.plot(
                 x, y,
                 label=key,
@@ -133,7 +130,7 @@ class Plotter:
                 linewidth=linewidth,
                 markersize=markersize,
                 alpha=alpha
-                )  # 繪製每組數據
+            )  # 繪製每組數據
 
         fig.tight_layout()  # 自動調整布局
         # fig.set_facecolor('#E8E8E8')
@@ -145,7 +142,7 @@ class Plotter:
             # ax.grid(True, alpha=0.2)
             # ax.tick_params(axis='y', labelcolor='white')
 
-        plt.show()
+        plt.show(block=block)
 
 
 plotter = Plotter()

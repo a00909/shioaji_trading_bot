@@ -1,7 +1,7 @@
 from datetime import date
 
 from backtesting.feature_builder.feature_name import FeatureName
-from backtesting.feature_grapher import FeatureGrapher
+from backtesting.grapher.feature_grapher import FeatureGrapher
 
 fg = FeatureGrapher()
 fg.graph(

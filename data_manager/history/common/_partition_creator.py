@@ -3,22 +3,8 @@ from functools import lru_cache
 from typing import Iterable
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import text
 
-_CREATE_PARTITION_STMT_TEMPLATE = """
-    DO $$
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = '{1}') THEN
-            EXECUTE format('
-                CREATE TABLE %I PARTITION OF {0} FOR VALUES FROM (%L) TO (%L)',
-                '{1}', 
-                '{2}', 
-                '{3}'
-            );
-        END IF;
-    END $$;
-    """
-_CREATE_PARTITION_STMT_TEMPLATE_2 = "CREATE TABLE IF NOT EXISTS {0} PARTITION OF {1} FOR VALUES FROM (2) TO (3)"
+_CREATE_PARTITION_STMT_TEMPLATE_2 = "CREATE TABLE IF NOT EXISTS {0} PARTITION OF {1} FOR VALUES FROM ('{2}') TO ('{3}')"
 
 
 @lru_cache(maxsize=None)

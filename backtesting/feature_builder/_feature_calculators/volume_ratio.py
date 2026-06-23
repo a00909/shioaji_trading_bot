@@ -1,6 +1,8 @@
-from datetime import datetime
+from datetime import datetime, date
 
 import numpy as np
+
+from strategy.tools.kbar_indicators.intraday_interval_volume_avg.iiva_lookup import IIVALookup
 
 
 def rolling_vol_sum_window(n, window_seconds, times, volumes):
@@ -20,7 +22,7 @@ def rolling_vol_sum_window(n, window_seconds, times, volumes):
     return result
 
 
-def volume_ratio(n, window_seconds, times, volumes, iiva_lookup_fn):
+def volume_ratio(n, window_seconds, times, volumes, iiva_lookups: dict[date, IIVALookup]):
     """
             量比 = 滾動窗口內成交量總和 / IIVA（歷史同期均量）
 
@@ -36,8 +38,7 @@ def volume_ratio(n, window_seconds, times, volumes, iiva_lookup_fn):
     iiva_array = np.full(n, 1.0, dtype=np.float64)
     for i in range(n):
         ts = datetime.fromtimestamp(times[i])
-        aligned = ts.replace(second=0, microsecond=0)
-        iiva_array[i] = iiva_lookup_fn(aligned)
+        iiva_array[i] = iiva_lookups[ts.date()].get(ts)
 
     result = np.where(
         iiva_array > 0,

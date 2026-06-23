@@ -20,7 +20,7 @@ slice_ = npy_cached_htm.get(
 )
 app.shut()
 
-slice_ = list(s.tick_slice for s in slice_)
+slice_ = list(s.np_slice for s in slice_)
 df = DataFrame(asdict(
     TickSlice.merge_slices(slice_)
 ))

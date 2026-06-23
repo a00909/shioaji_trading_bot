@@ -23,17 +23,17 @@ Wildcard support (keys / delete):
     "tmf.**"                 → everything under tmf/ (globstar)
 """
 import fnmatch
-from enum import StrEnum
+from enum import StrEnum, Enum
 from pathlib import Path
 
 import numpy as np
 
 
-class CacheState(StrEnum):
+class CacheState(Enum):
     """Three-state cache result."""
-    HIT = "hit"
-    EMPTY = "empty"
-    MISS = "miss"
+    HIT = 1
+    EMPTY = 2
+    MISS = 0
 
 
 class NpyCacheManager:
@@ -220,3 +220,6 @@ class NpyCacheManager:
 
     def __repr__(self) -> str:
         return f"NpyCacheManager(root={str(self.root)!r})"
+
+
+npy_cache_manager = NpyCacheManager()

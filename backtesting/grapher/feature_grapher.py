@@ -1,7 +1,7 @@
 from backtesting.feature_builder._feature_config import FeatureConfig
 from backtesting.feature_builder.feature_builder import FeatureBuilder
 from backtesting.feature_builder.feature_name import FeatureName
-from data_manager.history.statics.np_ticks import NPTicks
+from data_manager.history.statics.tick.np_ticks import NPTicks
 from tools.backtesting_context import BacktestingContext
 from tools.plotter import Plotter
 from tools.utils import tmf_r1_contract
@@ -11,7 +11,7 @@ class FeatureGrapher(BacktestingContext):
     def graph(self, start, end, feature_to_graph_idx: dict[FeatureName | str, int]):
         with self.app.raw_connection as conn:
             daily_slices = self.npy_htm.get(conn, tmf_r1_contract(self.app.api), start, end)
-        slices: list[NPTicks] = [s.tick_slice for s in daily_slices if s.tick_slice is not None]
+        slices: list[NPTicks] = [s.np_slice for s in daily_slices if s.np_slice is not None]
 
         ticks = NPTicks.merge_slices(slices)
 
@@ -19,9 +19,9 @@ class FeatureGrapher(BacktestingContext):
 
         fb = FeatureBuilder(ticks, self.iiva_lookup, FeatureConfig())
 
-        f = fb.build(list(feature_to_graph_idx.keys()))
+        f = fb.build_features(list(feature_to_graph_idx.keys()))
 
-        times = ticks.datetime()
+        times = ticks.datetime64()
 
         plotter = Plotter(True)
 

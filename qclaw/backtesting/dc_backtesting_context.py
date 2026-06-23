@@ -4,7 +4,7 @@ Donchian 回測情境基礎類別
 import sys
 import time
 
-from data_manager.history.statics.np_ticks import NPTicks
+from data_manager.history.statics.tick.np_ticks import NPTicks
 from data_manager.history.statics.data import DailySlice
 from tools.backtesting_context import BacktestingContext
 
@@ -34,7 +34,7 @@ class DonchianBacktestingContext(BacktestingContext):
         _st_time = time.time()
         with self.app.raw_connection as conn:
             daily_slices: list[DailySlice] = self.npy_htm.get(conn, self.contract, start, end)
-        slices: list[NPTicks] = [s.tick_slice for s in daily_slices if s.tick_slice is not None]
+        slices: list[NPTicks] = [s.np_slice for s in daily_slices if s.np_slice is not None]
         ticks = NPTicks.merge_slices(slices)
 
         print(f'tick load consumed {time.time() - _st_time} seconds.')
@@ -44,16 +44,16 @@ class DonchianBacktestingContext(BacktestingContext):
         fb = FeatureBuilder(ticks, self.iiva_lookup, FeatureConfig(
             donchian_window=timedelta(seconds=1800),
         ))
-        f = fb.build(['price', 'donchian_ha', 'donchian_la', 'donchian_h', 'donchian_l'], with_label)
+        f = fb.build_features(['price', 'donchian_ha', 'donchian_la', 'donchian_h', 'donchian_l'], with_label)
         print(f'feature build consumed {time.time() - _st_time} seconds.')
 
         for daily_slice in daily_slices:
-            day_labels.extend([daily_slice.date] * len(daily_slice.tick_slice))
-            daily_max = np.max(daily_slice.tick_slice.close)
-            daily_min = np.min(daily_slice.tick_slice.close)
+            day_labels.extend([daily_slice.date] * len(daily_slice.np_slice))
+            daily_max = np.max(daily_slice.np_slice.close)
+            daily_min = np.min(daily_slice.np_slice.close)
             self.day_ranges[daily_slice.date] = float(daily_max - daily_min)
 
-            print(f'\t{daily_slice.date}: {len(daily_slice.tick_slice)}')
+            print(f'\t{daily_slice.date}: {len(daily_slice.np_slice)}')
 
         self.times = fb.times.astype(np.float64)
         self.prices = f['price'].astype(np.float64)

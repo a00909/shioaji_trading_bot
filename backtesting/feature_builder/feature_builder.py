@@ -11,13 +11,11 @@ Feature Builder - ML 特徵計算模組
 - active_sell_vol = 內盤成交量（tick_type == 2）
 """
 
-from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from functools import wraps
 from typing import Callable, Optional
 
 import numpy as np
-import pandas as pd
 
 from backtesting.feature_builder._feature_calculators.bid_ask_imbalance import bid_ask_features, compute_imb_change_rate
 from backtesting.feature_builder._feature_calculators.time_feature import extract_time_features_util
@@ -29,9 +27,12 @@ from backtesting.feature_builder._feature_calculators.donchian import donchian
 from backtesting.feature_builder._feature_calculators.net_buy_ratio import net_buy_ratio
 from backtesting.feature_builder.feature_name import FeatureName
 from backtesting.feature_builder.indicator_proxy import IndicatorsProxy
-from backtesting.feature_builder.labeler import pnl_label
-from data_manager.history.statics.np_ticks import NPTicks
+from backtesting.feature_builder.labels.pnl_label import pnl_label
+from backtesting.feature_builder.labels.triple_barrier_label import triple_barrier_label
+from data_manager.history.statics.aggregated_bars import AggregatedBars
+from data_manager.history.statics.tick.np_ticks import NPTicks
 from database.schema.history_tick import HistoryTick
+from strategy.tools.kbar_indicators.intraday_interval_volume_avg.iiva_lookup import IIVALookup
 
 
 def cache_result(func):
@@ -85,8 +86,8 @@ class FeatureBuilder:
 
     def __init__(
             self,
-            ticks: list | NPTicks,
-            iiva_lookup: Optional[Callable[[datetime], float]] = None,
+            ticks: list | NPTicks | AggregatedBars,
+            iiva_lookups: dict[date,IIVALookup]=None,
             config: Optional[FeatureConfig] = None,
     ):
         """
@@ -96,13 +97,15 @@ class FeatureBuilder:
         """
         self._ticks = ticks
         self._config = config or FeatureConfig()
-        self._iiva_lookup = iiva_lookup
+        self._iiva_lookups = iiva_lookups
         self._n = len(ticks)
 
         if not ticks:
             raise Exception('no ticks given.')
         if isinstance(ticks, NPTicks):
             self._init_attrs_by_tick_slice(ticks)
+        elif isinstance(ticks, AggregatedBars):
+            self._init_attrs_by_aggregated_bars(ticks)
         elif isinstance(ticks[0], HistoryTick):
             self._init_attrs_by_history_ticks(ticks)
         else:
@@ -121,6 +124,18 @@ class FeatureBuilder:
         self._ask_prices = ticks.ask_price
         self._bid_volumes = ticks.bid_volume
         self._ask_volumes = ticks.ask_volume
+
+    def _init_attrs_by_aggregated_bars(self, bars: AggregatedBars):
+        self._times = bars.ts_seconds()
+        self._closes = bars.close
+        self._volumes = bars.volume
+        # 用成交方向重建 tick_type：外盤>內盤→偏多(1)，反之偏空(2)
+        diff = bars.active_buy_volume - bars.active_sell_volume
+        self._tick_types = np.where(diff >= 0, 1, 2).astype(np.int32)
+        self._bid_prices = bars.avg_bid_price
+        self._ask_prices = bars.avg_ask_price
+        self._bid_volumes = bars.avg_bid_volume.astype(np.int64)
+        self._ask_volumes = bars.avg_ask_volume.astype(np.int64)
 
     def _init_attrs_by_history_ticks(self, ticks: list[HistoryTick]):
         self._times = np.array([t.ts.timestamp() for t in ticks], dtype=np.float64)
@@ -165,7 +180,7 @@ class FeatureBuilder:
     #  核心計算方法
     # ─────────────────────────────────────────────
 
-    def build(self, feature_names: list[str] = None, with_label=False) -> dict:
+    def build_features(self, feature_names: list[str] = None, return_mtx=False) -> dict | np.ndarray:
         """
         計算所有特徵，回傳 dict[str,ndarray]。
 
@@ -205,19 +220,22 @@ class FeatureBuilder:
             data = {k: v() for k, v in func_map.items()}
 
         else:
-            data = {}
+            data: dict[str, np.ndarray] = {}
             for n in feature_names:
                 if n not in func_map:
                     raise Exception("Unknown feature: {}".format(n))
                 data[n] = func_map[n]()
 
-        if with_label:
-            data['max_fav'] = self.max_fav()
-            data['max_adv'] = self.max_adv()
-            data['valid_mask'] = self.valid_mask()
 
-        # return pd.DataFrame(data, index=self._times)
+        if return_mtx:
+            mtx = np.hstack([data[k].reshape(-1, 1) for k in data])
+            return mtx
         return data
+
+    def build_label(self):
+        label = self.tbl_label()
+        valid = self.tbl_valid()
+        return label, valid
 
     # ─────────────────────────────────────────────
     #  個別特徵計算
@@ -278,7 +296,7 @@ class FeatureBuilder:
             self._config.volume_ratio_window.total_seconds(),
             self._times,
             self._volumes,
-            self._iiva_lookup
+            self._iiva_lookups
         )
         return result
 
@@ -396,23 +414,39 @@ class FeatureBuilder:
     # ─────────────────────────────────────────────
 
     @cache_result
-    def pnl_label(self):
+    def _pnl_label(self):
         future_max, future_min, upside, downside, valid_mask = pnl_label(
             self._closes, self._times, self._config.pnl_label_window.total_seconds())
 
         return future_max, future_min, upside, downside, valid_mask
 
     def max_fav(self):
-        _, _, mf, _, _ = self.pnl_label()
+        _, _, mf, _, _ = self._pnl_label()
         return mf
 
     def max_adv(self):
-        _, _, _, ma, _ = self.pnl_label()
+        _, _, _, ma, _ = self._pnl_label()
         return ma
 
-    def valid_mask(self):
-        _, _, _, _, valid_mask = self.pnl_label()
+    def pnl_valid_mask(self):
+        _, _, _, _, valid_mask = self._pnl_label()
         return valid_mask
+
+    @cache_result
+    def _triple_barrier_label(self):
+        label, profit, barrier_idx, valid_mask = triple_barrier_label(
+            self._closes, self._times, self._config.pnl_label_window.total_seconds(),
+            0.002, 0.0016
+        )
+        return label, profit, barrier_idx, valid_mask
+
+    def tbl_label(self):
+        l, _, _, _ = self._triple_barrier_label()
+        return l
+
+    def tbl_valid(self):
+        _, _, _, v = self._triple_barrier_label()
+        return v
 
     # ─────────────────────────────────────────────
     #  工具方法
@@ -435,7 +469,7 @@ class FeatureBuilder:
 
     def summary(self) -> dict:
         """回傳特徵統計摘要"""
-        features = self.build()
+        features = self.build_features()
         return {
             'n_samples': len(features),
             'feature_stats': features.describe().to_dict(),
